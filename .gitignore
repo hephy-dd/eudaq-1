@@ -34,3 +34,6 @@ cmake/eudaqConfig.cmake
 cmake/eudaqConfigVersion.cmake
 cmake/eudaqTargets-relwithdebinfo.cmake
 cmake/eudaqTargets.cmake
+
+#QtCreator project file
+CMakeLists.txt.user
