@@ -1,3 +1,12 @@
+option(USER_mpw3_gui_BUILD "build mpw3_gui" OFF)
+
+if(NOT USER_mpw3_gui_BUILD)
+  message(STATUS "mpw3_gui is NOT to be built (USER_mpw3_gui_BUILD=OFF)")
+  return()
+else()
+  message(STATUS "mpw3_gui is to be built (USER_mpw3_gui_BUILD=ON)")
+endif()
+
 cmake_minimum_required(VERSION 3.5)
 
 project(MPW3_gui VERSION 0.1 LANGUAGES CXX)
@@ -30,8 +39,6 @@ set(PROJECT_SOURCES
         mpw3_monitor.cc
         mpw3_qt_if.h
         mpw3_qt_if.cpp
-        mpw3eventconverter.cpp
-        mpw3eventconverter.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
