@@ -1,4 +1,6 @@
-#include "mpw3eventconverter.h"
+#include "CaribouEvent2StdEventConverter.hh"
+
+using namespace eudaq;
 
 namespace {
   auto dummy0 = eudaq::Factory<eudaq::StdEventConverter>::Register<
