@@ -51,7 +51,7 @@ bool Mpw3RawEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
     memcpy(&rawdata[0], &datablock[0] + headerLength,
            nData * sizeWord); // extracted reasonable data
 
-    eudaq::StandardPlane plane(0, "Caribou", "RD50_MPWx");
+    eudaq::StandardPlane plane(0, "Caribou", "RD50_MPW2");
     plane.SetSizeZS(dimSensor, dimSensor, 0);
     // we have a x * y grid, where each grid-point has 1  pixel (this is the 0)
 
