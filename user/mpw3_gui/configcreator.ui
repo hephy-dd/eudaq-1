@@ -32,6 +32,9 @@
      <height>21</height>
     </rect>
    </property>
+   <property name="toolTip">
+    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;path to the input config&lt;/p&gt;&lt;p&gt;eg.: ssh://root@192.168.130.7:config.txt (over ssh)&lt;/p&gt;&lt;p&gt;/tmp/config.txt (locally)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+   </property>
    <property name="text">
     <string>ssh://root@192.168.130.7:config.cfg</string>
    </property>
@@ -70,6 +73,9 @@
      <width>251</width>
      <height>25</height>
     </rect>
+   </property>
+   <property name="toolTip">
+    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;path to deploy the config to&lt;/p&gt;&lt;p&gt;eg.: ssh://root@192.168.130.7:config.txt (over ssh)&lt;/p&gt;&lt;p&gt;/tmp/config.txt (locally)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
    </property>
    <property name="text">
     <string>ssh://root@192.168.130.7:config.cfg.mod</string>
