@@ -28,18 +28,18 @@
     <rect>
      <x>470</x>
      <y>50</y>
-     <width>231</width>
+     <width>251</width>
      <height>21</height>
     </rect>
    </property>
    <property name="text">
-    <string>root@192.168.130.7:config.cfg</string>
+    <string>ssh://root@192.168.130.7:config.cfg</string>
    </property>
   </widget>
   <widget class="QPushButton" name="pbParse">
    <property name="geometry">
     <rect>
-     <x>710</x>
+     <x>730</x>
      <y>50</y>
      <width>89</width>
      <height>25</height>
@@ -52,7 +52,7 @@
   <widget class="QPushButton" name="pbDeploy">
    <property name="geometry">
     <rect>
-     <x>710</x>
+     <x>730</x>
      <y>130</y>
      <width>89</width>
      <height>25</height>
@@ -67,12 +67,12 @@
     <rect>
      <x>472</x>
      <y>130</y>
-     <width>231</width>
+     <width>251</width>
      <height>25</height>
     </rect>
    </property>
    <property name="text">
-    <string>root@192.168.130.7:config.cfg.mod</string>
+    <string>ssh://root@192.168.130.7:config.cfg.mod</string>
    </property>
   </widget>
   <widget class="QLabel" name="label">
@@ -111,19 +111,6 @@
     </rect>
    </property>
   </widget>
-  <widget class="QPushButton" name="pbAddItem">
-   <property name="geometry">
-    <rect>
-     <x>10</x>
-     <y>490</y>
-     <width>89</width>
-     <height>25</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Add Item</string>
-   </property>
-  </widget>
   <widget class="QPushButton" name="pbClearLog">
    <property name="geometry">
     <rect>
@@ -135,38 +122,6 @@
    </property>
    <property name="text">
     <string>Clear</string>
-   </property>
-  </widget>
-  <widget class="QRadioButton" name="rbLocal">
-   <property name="geometry">
-    <rect>
-     <x>720</x>
-     <y>200</y>
-     <width>96</width>
-     <height>23</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Local</string>
-   </property>
-   <property name="checked">
-    <bool>false</bool>
-   </property>
-  </widget>
-  <widget class="QRadioButton" name="rbSsh">
-   <property name="geometry">
-    <rect>
-     <x>720</x>
-     <y>160</y>
-     <width>96</width>
-     <height>23</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>SSH</string>
-   </property>
-   <property name="checked">
-    <bool>true</bool>
    </property>
   </widget>
   <widget class="QPushButton" name="pbTest">

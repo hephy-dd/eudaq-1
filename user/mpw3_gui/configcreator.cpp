@@ -16,19 +16,22 @@ ConfigCreatorView::~ConfigCreatorView() { delete ui; }
 
 void ConfigCreatorView::on_pbParse_clicked() {
   mModel.clear();
+  int fileSrc = 0;
   parseConfig(ui->leTemplateFile->text());
   setupView();
 }
 
-void ConfigCreatorView::parseConfig(const QString &pathToCfg) {
+void ConfigCreatorView::parseConfig(const QString &pathToConfig) {
   QString filename;
   const QString tmpConfigFile = "/tmp/tmpconf.cfg";
+  filename = pathToConfig;
 
-  if (ui->rbLocal->isChecked()) {
-    filename = pathToCfg; // we work locally, this means we can simply open the
-                          // wanted file from our drive
-  } else if (ui->rbSsh->isChecked()) {
-    QString scpCmd = "scp " + pathToCfg.trimmed() + " " + tmpConfigFile;
+  auto fileSrc = fileSrcFromInput(filename);
+
+  if (fileSrc == FileSrc::Local) {
+    // nothing particular to do, we are alrdy set up properly
+  } else if (fileSrc == FileSrc::SSH) {
+    QString scpCmd = "scp " + filename.trimmed() + " " + tmpConfigFile;
     if (system(scpCmd.toLocal8Bit().data()) !=
         0) { // calling external process scp to copy remote file to our drive
       ui->tbLog->append("Error copying config file to: " + tmpConfigFile);
@@ -159,40 +162,35 @@ void ConfigCreatorView::setupView() {
   mModel.setHorizontalHeaderLabels(labels);
 }
 
+ConfigCreatorView::FileSrc ConfigCreatorView::fileSrcFromInput(QString &input) {
+  if (input.startsWith("ssh://")) {
+    input = input.remove("ssh://");
+    return FileSrc::SSH;
+  }
+
+  return FileSrc::Local;
+}
+
 void ConfigCreatorView::on_pbDeploy_clicked() {
 
   QString outputFile;
   const QString tmpConfig = "/tmp/configout.cfg";
-  if (ui->rbLocal->isChecked()) {
-    outputFile = ui->leOutputFile->text();
-  } else if (ui->rbSsh->isChecked()) {
+  QString target = ui->leOutputFile->text();
+  auto fileSrc = fileSrcFromInput(target);
+  if (fileSrc == FileSrc::Local) {
+    outputFile = target;
+  } else if (fileSrc == FileSrc::SSH) {
     outputFile = tmpConfig;
   }
   saveConfig(outputFile);
 
-  if (ui->rbSsh->isChecked()) {
-    QString scpCmd = "scp " + tmpConfig + " " + ui->leOutputFile->text();
+  if (fileSrc == FileSrc::SSH) {
+    QString scpCmd = "scp " + tmpConfig + " " + target;
     if (system((scpCmd.toLocal8Bit().data())) != 0) {
       ui->tbLog->append("Error deploying file: " + tmpConfig +
                         "\n to: " + ui->leOutputFile->text());
     }
   }
-}
-
-void ConfigCreatorView::on_pbAddItem_clicked() {
-
-  QList<QStandardItem *> row;
-  for (int i = 0; i < 2; i++) {
-    auto item = new QStandardItem();
-    if (i == 0) {
-      item->setText("new item");
-    } else {
-      item->setText("xxx");
-    }
-
-    row.append(item);
-  }
-  mModel.appendRow(row);
 }
 
 void ConfigCreatorView::on_pbClearLog_clicked() { ui->tbLog->clear(); }

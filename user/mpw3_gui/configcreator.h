@@ -17,10 +17,7 @@ public:
 
 private slots:
   void on_pbParse_clicked();
-
   void on_pbDeploy_clicked();
-
-  void on_pbAddItem_clicked();
   void on_pbClearLog_clicked();
 
 private:
@@ -31,15 +28,17 @@ private:
     bool isComment;
   };
   enum ColumnRole { Item, Comment };
+  enum FileSrc { Local, SSH };
 
   Ui::ConfigCreator *ui;
 
   QStandardItemModel mModel;
   QList<ConfigItem> mItems;
 
-  void parseConfig(const QString &pathToCfg);
+  void parseConfig(const QString &pathToConfig);
   void saveConfig(const QString &fileName);
   void setupView();
+  FileSrc fileSrcFromInput(QString &input);
 };
 
 #endif // CONFIGCREATOR_H
