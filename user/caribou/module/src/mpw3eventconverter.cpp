@@ -24,7 +24,7 @@ bool Mpw3RawEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
   if (ev->NumBlocks() == 1) {
     auto datablock = ev->GetBlock(0);
 
-    uint32_t nData;
+    uint32_t nData, triggerN;
     auto sizeWord = sizeof(uint32_t);
 
     /*
@@ -32,7 +32,7 @@ bool Mpw3RawEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
      * device) uint32_t values => we have to restore whole words of data
      */
 
-    const int headerLength = 1 * sizeWord;
+    const int headerLength = 2 * sizeWord;
 
     /*
      * the protocol specifies a header
@@ -41,6 +41,7 @@ bool Mpw3RawEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
      */
 
     memcpy(&nData, &datablock[0], sizeWord);
+    memcpy(&triggerN, &datablock[0] + sizeWord, sizeWord);
     //    memcpy(&dimSensor, &datablock[0] + sizeWord, sizeWord);
 
     //    std::cout << "          nData = " << nData;
@@ -51,7 +52,7 @@ bool Mpw3RawEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
     memcpy(&rawdata[0], &datablock[0] + headerLength,
            nData * sizeWord); // extracted reasonable data
 
-    eudaq::StandardPlane plane(0, "Caribou", "RD50_MPW2");
+    eudaq::StandardPlane plane(0, "Caribou", "RD50_MPW3");
     plane.SetSizeZS(dimSensor, dimSensor, 0);
     // we have a x * y grid, where each grid-point has 1  pixel (this is the 0)
 
@@ -71,6 +72,10 @@ bool Mpw3RawEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
     }
 
     d2->AddPlane(plane);
+    d2->SetTriggerN(triggerN);
+    uint64_t timebegin = triggerN * 2 * 1e12;
+    d2->SetTimeBegin(timebegin);
+    d2->SetTimeEnd(timebegin);
     return true;
   }
   return false;

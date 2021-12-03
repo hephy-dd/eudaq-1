@@ -91,7 +91,7 @@ void ConfigCreatorView::saveConfig(const QString &fileName) {
   QFile file(fileName);
   if (file.open(QIODevice::WriteOnly)) {
     QTextStream out(&file);
-    out << "[RD50_MPW2]\n"; // device specifier needed by peary
+    out << "[RD50_MPW3]\n"; // device specifier needed by peary
     for (int row = 0; row < mModel.rowCount(); row++) {
 
       // data of 1st item tells us how to treat this row
