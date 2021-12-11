@@ -21,9 +21,10 @@ ConfigCreatorView::ConfigCreatorView(QWidget *parent)
 ConfigCreatorView::~ConfigCreatorView() { delete ui; }
 
 void ConfigCreatorView::on_pbParse_clicked() {
-  int fileSrc = 0;
+  mConfigMisc.clear();
+  mConfigPower.clear();
   parseConfig(ui->leTemplateFile->text());
-  //  setupView();
+  populateModels();
 }
 
 void ConfigCreatorView::parseConfig(const QString &pathToConfig) {
@@ -52,28 +53,97 @@ void ConfigCreatorView::parseConfig(const QString &pathToConfig) {
     ui->tbLog->append("Error opening input file");
     return;
   }
+
+  int stage = -1;
+
+  while (!input.atEnd()) {
+    auto line = input.readLine();
+    if (line.startsWith("#SEC::MISC")) {
+      stage = 0;
+      continue;
+    }
+    if (line.startsWith("#SEC::POWER")) {
+      stage = 1;
+      continue;
+    }
+
+    if (line.startsWith("#") || line.startsWith("[") || line.isEmpty()) {
+      /* is either comment line, or device specifier, or an empty line
+       */
+      continue;
+    }
+
+    auto splitted = line.split("=");
+    if (splitted.length() != 2) {
+      ui->tbLog->append("invalid config line :\"" + line + "\"");
+      continue;
+    }
+    splitted[0] = splitted[0].trimmed();
+    splitted[1] = splitted[1].trimmed(); // remove white space
+    if (stage == -1) {
+      continue;
+    } else if (stage == 0) {
+      // currently we are working in the MISC section
+
+      mConfigMisc[splitted[0]] = splitted[1];
+    } else if (stage == 1) {
+
+      bool ok = true;
+
+      if (splitted[0].endsWith("__u")) {
+        auto withoutSuffix = splitted[0].remove("__u");
+        auto val = mConfigPower.value(withoutSuffix);
+
+        val.voltage = splitted[1].toDouble(&ok);
+        // keep possible already parsed __i for curent power item
+        // only set the voltage
+        mConfigPower[withoutSuffix] =
+            val; // item will be overwritten if alrdy in config
+
+      } else if (splitted[0].endsWith("__i")) {
+        auto withoutSuffix = splitted[0].remove("__i");
+        auto val = mConfigPower.value(withoutSuffix);
+
+        val.current = splitted[1].toDouble(&ok);
+        // keep possible already parsed __v for curent power item
+        // only set the current
+        mConfigPower[withoutSuffix] =
+            val; // item will be overwritten if alrdy in config
+      } else {
+        ui->tbLog->append("Invalid power item suffix in item\"" + splitted[0] +
+                          "\"");
+      }
+      if (!ok) {
+        ui->tbLog->append("Error converting value: " + splitted[1]);
+      }
+    }
+  }
 }
 
 void ConfigCreatorView::saveConfig(const QString &fileName) {
 
   QFile file(fileName);
-  const QString secComm = " Line needed for parsing, do not change!";
   if (file.open(QIODevice::WriteOnly)) {
     QTextStream out(&file);
-    out << "[RD50_MPW3]\n";
-    out << "#SEC::MISC" << secComm << "\n";
+
+    out << "#This config file was generated with the \"MPW3_gui - Config "
+           "Creator\"\n"
+        << "#Do not change comment lines like \"SEC::xxx\" !\n"
+        << "#They are needed for parsing\n\n";
+
+    out << "[RD50_MPW3]\n"; // needed by peary to identify correct device
+    out << "#SEC::MISC\n";
     for (int i = 0; i < mModelMisc.rowCount(); i++) {
       out << mModelMisc.item(i, 0)->text() << " = "
           << mModelMisc.item(i, 1)->text() << "\n";
     }
 
-    out << "\n\n#SEC::POWER" << secComm << "\n";
-    out << "# voltages with suffix \"_v\", currents with "
-           "\"_i\"\n";
+    out << "\n\n#SEC::POWER\n";
+    out << "# voltages with suffix \"__u\", currents with \"__i\"\n";
     for (int i = 0; i < mModelPower.rowCount(); i++) {
-      out << mModelPower.item(i, 0)->text() + "_v = "
+      out << mModelPower.item(i, 0)->text() + "__u = "
           << mModelPower.item(i, 1)->text() << "\n";
-      out << mModelPower.item(i, 0)->text() + "_i = "
+      out << mModelPower.item(i, 0)->text() + "__i = "
           << mModelPower.item(i, 2)->text() << "\n";
     }
 
@@ -126,6 +196,7 @@ void ConfigCreatorView::populateModels() {
   QList<QStandardItem *> row;
   foreach (auto key, miscKeys) {
     auto name = new QStandardItem(key);
+    name->setEditable(false);
     auto value = new QStandardItem(mConfigMisc.value(key).toString());
     row << name << value;
 
@@ -142,6 +213,7 @@ void ConfigCreatorView::populateModels() {
 
   foreach (auto key, powerKeys) {
     auto name = new QStandardItem(key);
+    name->setEditable(false);
     auto v =
         new QStandardItem(QString::number(mConfigPower.value(key).voltage));
     auto i =

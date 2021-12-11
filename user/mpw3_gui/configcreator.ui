@@ -41,7 +41,7 @@
         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;path to the input config&lt;/p&gt;&lt;p&gt;eg.: ssh://root@192.168.130.7:config.txt (over ssh)&lt;/p&gt;&lt;p&gt;/tmp/config.txt (locally)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
        </property>
        <property name="text">
-        <string>ssh://root@192.168.130.7:config.cfg</string>
+        <string>ssh://root@192.168.130.7:test.cfg</string>
        </property>
        <property name="clearButtonEnabled">
         <bool>false</bool>
@@ -114,7 +114,7 @@
         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;path to deploy the config to&lt;/p&gt;&lt;p&gt;eg.: ssh://root@192.168.130.7:config.txt (over ssh)&lt;/p&gt;&lt;p&gt;/tmp/config.txt (locally)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
        </property>
        <property name="text">
-        <string>ssh://root@192.168.130.7:config.cfg.mod</string>
+        <string>ssh://root@192.168.130.7:test.cfg</string>
        </property>
       </widget>
      </item>
