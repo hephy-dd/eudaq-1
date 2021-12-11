@@ -16,9 +16,12 @@ public:
   ~ConfigCreatorView();
 
 private slots:
+  void on_pbInit_clicked();
   void on_pbParse_clicked();
   void on_pbDeploy_clicked();
   void on_pbClearLog_clicked();
+  void on_pbMisc_toggled(bool checked);
+  void on_pbPower_toggled(bool checked);
 
 private:
   struct ConfigItem {
@@ -27,17 +30,35 @@ private:
     bool enabled;
     bool isComment;
   };
+
+  struct ConfigPowerItem {
+    ConfigPowerItem() {
+      voltage = 0.0;
+      current = 0.0;
+    }
+    ConfigPowerItem(double v, double i = 3.0) {
+      voltage = v;
+      current = i;
+    }
+    double voltage;
+    double current;
+  };
+
   enum ColumnRole { Item, Comment };
   enum FileSrc { Local, SSH };
 
   Ui::ConfigCreator *ui;
 
-  QStandardItemModel mModel;
+  QMap<QString, QVariant> mConfigMisc;
+  QMap<QString, ConfigPowerItem> mConfigPower;
+  QStandardItemModel mModelPower;
+  QStandardItemModel mModelMisc;
   QList<ConfigItem> mItems;
 
   void parseConfig(const QString &pathToConfig);
   void saveConfig(const QString &fileName);
-  void setupView();
+  void initConfig();
+  void populateModels();
   FileSrc fileSrcFromInput(QString &input);
 };
 
