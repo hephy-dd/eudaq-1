@@ -157,7 +157,7 @@ void ConfigCreatorView::initConfig() {
   mConfigMisc.clear();
   mConfigPower.clear();
 
-  mConfigMisc["i2c_dev"] = "\\dev\\i2c-13";
+  mConfigMisc["i2c_dev"] = "/dev/i2c-13";
   mConfigMisc["i2c_addr"] = 0x1C;
 
   mConfigPower["vssa"] = ConfigPowerItem(1.3);
