@@ -12,12 +12,14 @@ MainWindow::MainWindow(QWidget *parent)
 
   mMonitorView = new MonitorView(mSensorSize, this);
   mConfigCreatorView = new ConfigCreatorView(this);
+  mController = new Controller(this);
 
   ui->tabWidget->clear();
   ui->tabWidget->addTab(mMonitorView, "Monitor");
   ui->tabWidget->addTab(mConfigCreatorView, "Config");
+  ui->tabWidget->addTab(mController, "Control");
 
-  //    ui->graphicsView->setContentsMargins(0,0,0,0);
+  ui->tabWidget->setCurrentIndex(2);
 }
 
 MainWindow::~MainWindow() { delete ui; }

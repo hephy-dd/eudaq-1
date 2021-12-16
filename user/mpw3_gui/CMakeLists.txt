@@ -39,6 +39,9 @@ set(PROJECT_SOURCES
         mpw3_monitor.cc
         mpw3_qt_if.h
         mpw3_qt_if.cpp
+        controller.h
+        controller.cpp
+        controller.ui
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
