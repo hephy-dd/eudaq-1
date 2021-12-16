@@ -16,56 +16,187 @@
   <layout class="QGridLayout" name="gridLayout_2">
    <item row="0" column="0">
     <layout class="QGridLayout" name="gridLayout">
-     <item row="0" column="1">
+     <item row="0" column="5">
       <widget class="QPushButton" name="pbConnect">
        <property name="text">
         <string>Connect</string>
        </property>
       </widget>
      </item>
-     <item row="4" column="1">
+     <item row="2" column="5">
+      <widget class="QPushButton" name="pbPower">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="toolTip">
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;power the MPW3&lt;/p&gt;&lt;p&gt;is checkable&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       </property>
+       <property name="text">
+        <string>Power</string>
+       </property>
+       <property name="checkable">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="5">
+      <widget class="QPushButton" name="pbReset">
+       <property name="text">
+        <string>Reset</string>
+       </property>
+      </widget>
+     </item>
+     <item row="8" column="5">
       <widget class="QPushButton" name="pbClrLog">
        <property name="text">
         <string>Clear</string>
        </property>
       </widget>
      </item>
-     <item row="4" column="0">
-      <widget class="QTextBrowser" name="tbLog"/>
-     </item>
-     <item row="2" column="1">
-      <widget class="QPushButton" name="pbInitCmds">
+     <item row="2" column="4">
+      <widget class="QPushButton" name="pbConfigure">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="toolTip">
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;configure MPW3&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       </property>
        <property name="text">
-        <string>Cmd</string>
+        <string>Configure</string>
        </property>
       </widget>
      </item>
-     <item row="2" column="0">
-      <widget class="QComboBox" name="cbCommands"/>
+     <item row="1" column="2" colspan="2">
+      <widget class="QLineEdit" name="leConfigFile">
+       <property name="toolTip">
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;local (in caribou) path to the peary config file&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       </property>
+       <property name="text">
+        <string>config.cfg</string>
+       </property>
+      </widget>
      </item>
-     <item row="0" column="0">
+     <item row="2" column="1">
+      <widget class="QPushButton" name="pbExecute">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="toolTip">
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;execute chosen command&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       </property>
+       <property name="text">
+        <string>Execute</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="0" colspan="2">
+      <widget class="QComboBox" name="cbCommands">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="toolTip">
+        <string>choose command to be executed</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="0" colspan="2">
+      <spacer name="horizontalSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item row="0" column="2" colspan="2">
       <widget class="QLineEdit" name="leSshConn">
+       <property name="toolTip">
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;SSH login&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       </property>
        <property name="text">
         <string>root@192.168.130.7</string>
        </property>
       </widget>
      </item>
-     <item row="3" column="1">
+     <item row="3" column="2" colspan="2">
+      <widget class="QLineEdit" name="leArgs">
+       <property name="toolTip">
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Arguments for Command; Number of expected arguments given with &amp;quot;args: -&amp;quot;&lt;/p&gt;&lt;p&gt;Seperate multiple arguments with a space &amp;quot; &amp;quot;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="3">
+      <spacer name="horizontalSpacer_2">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item row="2" column="2">
+      <widget class="QPushButton" name="pbInitCmds">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="toolTip">
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fetch available commands&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       </property>
+       <property name="text">
+        <string>Get Cmds</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="0">
+      <spacer name="horizontalSpacer_3">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item row="1" column="5">
+      <widget class="QComboBox" name="cbLogLevel">
+       <property name="toolTip">
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;log-level&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="5">
       <widget class="QPushButton" name="pbTest">
        <property name="text">
         <string>Test</string>
        </property>
       </widget>
      </item>
-     <item row="1" column="0">
-      <widget class="QLineEdit" name="leConfigFile">
-       <property name="text">
-        <string>config.cfg</string>
+     <item row="7" column="5">
+      <spacer name="verticalSpacer">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
        </property>
-      </widget>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>40</height>
+        </size>
+       </property>
+      </spacer>
      </item>
-     <item row="1" column="1">
-      <widget class="QComboBox" name="cbLogLevel"/>
+     <item row="7" column="0" rowspan="2" colspan="5">
+      <widget class="QTextBrowser" name="tbLog"/>
      </item>
     </layout>
    </item>
