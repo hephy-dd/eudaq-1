@@ -4,7 +4,7 @@
 #include <QRegExp>
 
 Controller::Controller(QWidget *parent)
-    : QWidget(parent), ui(new Ui::Controller) {
+    : QWidget(parent), ui(new Ui::Controller), pearyDevName("RD50_MPW3") {
   ui->setupUi(this);
   QStringList logLevels;
   logLevels << "TRACE"
@@ -13,14 +13,18 @@ Controller::Controller(QWidget *parent)
             << "WARNING"
             << "ERROR";
   ui->cbLogLevel->addItems(logLevels);
-  ui->cbLogLevel->setCurrentIndex(1);
+  ui->cbLogLevel->setCurrentIndex(1); // set default to DEBUG
 
   connect(&mSshProc, &QProcess::errorOccurred, this,
           &Controller::sshErrorOccured);
   connect(&mSshProc, &QProcess::readyReadStandardOutput, this,
-          &Controller::readSshStdOut);
+          &Controller::receivedSshOutput);
   connect(&mSshProc, &QProcess::readyReadStandardError, this,
           &Controller::readSshError);
+  connect(&mTimeOutTimer, &QTimer::timeout, this, &Controller::sshTimeout);
+
+  mTimeOutTimer.setInterval(timeOutMs);
+  mTimeOutTimer.setSingleShot(true);
 }
 
 Controller::~Controller() {
@@ -30,27 +34,27 @@ Controller::~Controller() {
 }
 
 void Controller::on_pbConnect_clicked() {
-  if (mSshProc.isOpen() && mStateSsh == StateSsh::Running) {
-    ui->tbLog->append("SSH connection already open");
+  if (mSshProc.isOpen() || mStateSsh == StateSsh::Running) {
+    ui->tbLog->append("SSH connection already opened");
     return;
   }
 
   QStringList args;
-  args << ui->leSshConn->text();
+  args << "-T" << ui->leSshConn->text();
   mSshProc.start("ssh", args);
   if (!mSshProc.isOpen()) {
     ui->tbLog->append("Error connecting to SSH server");
     return;
   }
-  mSshProc.write(QString("echo " + connectedFeedback + "\n")
-                     .toLocal8Bit()); // test connection
+  mSshProc.write(QString("echo " + connectedFeedback + "\n").toLocal8Bit());
 }
 
 void Controller::sshErrorOccured(QProcess::ProcessError error) {
   ui->tbLog->append("SSH error: " + QString::number(error));
 }
 
-void Controller::readSshStdOut() {
+void Controller::receivedSshOutput() {
+  mSshWaitingForResponse = false; // for timeout to not triggered
   auto data = mSshProc.readAllStandardOutput();
   QString out(data);
 
@@ -59,11 +63,15 @@ void Controller::readSshStdOut() {
   }
   switch (mStatePeary) {
   case StatePeary::NotInitialized:
+    // start peary as soon as we connected to Caribou via SSH
     if (mStateSsh == StateSsh::Running) {
       startPeary();
     }
     break;
   case StatePeary::Initialized:
+    // peary is started, waiting for user input
+    // most likely commands are getting parsed now
+    // don't do this automatically
     break;
   case StatePeary::GetCommands:
     if (populateCmds(out)) {
@@ -78,13 +86,20 @@ void Controller::readSshStdOut() {
 }
 
 void Controller::readSshError() {
+  mSshWaitingForResponse = false; // error is also a response
   auto data = mSshProc.readAllStandardError();
   ui->tbLog->append("ERROR: " + QString(data));
 }
 
+void Controller::sshTimeout() {
+  if (mSshWaitingForResponse) {
+    ui->tbLog->append("ERROR: SSH command timeout");
+  }
+}
+
 void Controller::startPeary() {
   QString cmd = "pearycli -v " + ui->cbLogLevel->currentText() + " -c " +
-                ui->leConfigFile->text() + " " + pearyDevice;
+                ui->leConfigFile->text() + " " + pearyDevName;
   sshCmdExecute(cmd);
   mStatePeary = StatePeary::Initialized;
   ui->pbInitCmds->setEnabled(
@@ -110,7 +125,7 @@ bool Controller::populateCmds(const QString &pearyOutput) {
   return true;
 }
 
-void Controller::sshCmdExecute(const QString &command, bool pearyCmd,
+void Controller::sshCmdExecute(const QString &command, bool cmdForPeary,
                                int devId) {
   if (mStateSsh != StateSsh::Running) {
     ui->tbLog->append("ERROR: Cannot execute command! SSH not connected");
@@ -118,17 +133,23 @@ void Controller::sshCmdExecute(const QString &command, bool pearyCmd,
   }
 
   QString cmd = command;
-  if (pearyCmd) {
+  if (cmdForPeary) {
     // a command for peary needs to contain the device ID as last argument
     cmd += " " + QString::number(devId);
   }
-  cmd += "\n"; // basically pressing enter for ssh to actually execute command
+  cmd += "\n"; // basically pressing enter (for ssh to actually execute command)
   mSshProc.write(cmd.toLocal8Bit());
+
+  mSshWaitingForResponse = true;
+  mTimeOutTimer.start();
 }
 
 void Controller::on_pbClrLog_clicked() { ui->tbLog->clear(); }
 
-void Controller::on_pbTest_clicked() { startPeary(); }
+void Controller::on_pbTest_clicked() {
+  mSshWaitingForResponse = true;
+  mTimeOutTimer.start();
+}
 
 void Controller::on_pbInitCmds_clicked() {
 
@@ -169,4 +190,19 @@ void Controller::on_pbPower_toggled(bool checked) {
     ui->pbConfigure->setEnabled(false);
     ui->pbExecute->setEnabled(false);
   }
+}
+
+void Controller::on_pbReset_clicked() {
+  mSshProc.close();
+  mStatePeary = StatePeary::NotInitialized;
+  mStateSsh = StateSsh::NotInitialized;
+  ui->pbConfigure->setEnabled(false);
+  ui->pbPower->setEnabled(false);
+  ui->pbPower->setChecked(false);
+  ui->pbInitCmds->setEnabled(false);
+  ui->pbExecute->setEnabled(false);
+  ui->cbCommands->clear();
+  ui->cbCommands->setEnabled(false);
+
+  ui->tbLog->append("\n\n\n ....RESET.... \n\n\n");
 }

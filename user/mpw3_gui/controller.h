@@ -2,6 +2,7 @@
 #define CONTROLLER_H
 
 #include <QProcess>
+#include <QTimer>
 #include <QWidget>
 
 namespace Ui {
@@ -14,6 +15,9 @@ class Controller : public QWidget {
 public:
   explicit Controller(QWidget *parent = nullptr);
   ~Controller();
+
+private slots:
+  void on_pbReset_clicked();
 
 private slots:
   void on_pbPower_toggled(bool checked);
@@ -37,8 +41,9 @@ private slots:
   void on_pbConnect_clicked();
 
   void sshErrorOccured(QProcess::ProcessError error);
-  void readSshStdOut();
+  void receivedSshOutput();
   void readSshError();
+  void sshTimeout();
 
 private:
   enum class StateSsh { NotInitialized, Running, Error };
@@ -51,16 +56,19 @@ private:
 
   void startPeary();
   bool populateCmds(const QString &pearyOutput);
-  void sshCmdExecute(const QString &command, bool pearyCmd = false,
+  void sshCmdExecute(const QString &command, bool cmdForPeary = false,
                      int devId = 0);
 
   const QString connectedFeedback = "[Controller CONNECTED]";
-  const QString pearyDevice = "RD50_MPW3";
+  const QString pearyDevName;
+  const int timeOutMs = 2000;
 
   Ui::Controller *ui;
   QProcess mSshProc;
+  QTimer mTimeOutTimer;
   StateSsh mStateSsh = StateSsh::NotInitialized;
   StatePeary mStatePeary = StatePeary::NotInitialized;
+  bool mSshWaitingForResponse = false;
 };
 
 #endif // CONTROLLER_H
