@@ -17,29 +17,13 @@ public:
 
 private slots:
   void on_cbSfout_stateChanged(int arg1);
-
-private slots:
   void on_cbHb_stateChanged(int arg1);
-
-private slots:
   void on_cbInj_stateChanged(int arg1);
-
-private slots:
   void on_sbTdac_valueChanged(int arg1);
-
-private slots:
   void on_cbManOverride_stateChanged(int arg1);
-
-private slots:
   void on_sbCol_valueChanged(int arg1);
-
-private slots:
   void on_sbRow_valueChanged(int arg1);
-
-private slots:
   void on_cbMasked_stateChanged(int arg1);
-
-private slots:
   void on_pbInit_clicked();
   void on_pbParse_clicked();
   void on_pbDeploy_clicked();
@@ -103,9 +87,14 @@ private:
   void setPixelToModify();
   void saveMatrixConfig(const QString &fileName);
   void loadMatrixConfig(const QString &fileName);
+  bool deployViaSsh(const QString &localFile, const QString &server,
+                    const QString &targetPath, const QString &targetFile);
+  bool fetchViaSsh(const QString &localFile, const QString &server,
+                   const QString &srcPath, const QString &srcFile);
   ConfigPixel *pixelConfig(int row, int col);
   ConfigPixel *pixelConfig(const Pixel &pix);
-  FileSrc fileSrcFromInput(QString &input);
+  FileSrc fileSrcFromInput(QString input, QString *server, QString *filepath,
+                           QString *filename);
 };
 
 #endif // CONFIGCREATOR_H

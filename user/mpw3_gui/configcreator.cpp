@@ -29,31 +29,30 @@ void ConfigCreatorView::on_pbParse_clicked() {
   mConfigMisc.clear();
   mConfigPower.clear();
   parseConfig(ui->leTemplateFile->text());
-  loadMatrixConfig("/tmp/matrix.cfg");
   populateModels();
 }
 
 void ConfigCreatorView::parseConfig(const QString &pathToConfig) {
-  QString filename;
-  const QString tmpConfigFile = "/tmp/tmpconf.cfg";
-  filename = pathToConfig;
+  QString pearyConfigFile, server, srcPath, srcFile;
+  const QString tmpPearyConfigFile = "/tmp/tmpconf.cfg";
+  const QString tmpMatrixConfig = "/tmp/matrix.cfg";
 
-  auto fileSrc = fileSrcFromInput(filename);
+  auto fileSrc = fileSrcFromInput(pathToConfig, &server, &srcPath, &srcFile);
 
   if (fileSrc == FileSrc::Local) {
     // nothing particular to do, we are alrdy set up properly
+    pearyConfigFile = srcFile;
   } else if (fileSrc == FileSrc::SSH) {
-    QString scpCmd = "scp " + filename.trimmed() + " " + tmpConfigFile;
-    if (system(scpCmd.toLocal8Bit().data()) !=
-        0) { // calling external process scp to copy remote file to our drive
-      ui->tbLog->append("Error copying config file to: " + tmpConfigFile);
+    if (!fetchViaSsh(tmpPearyConfigFile, server, srcPath, srcFile)) {
+      ui->tbLog->append("Error copying file using scp from " + server +
+                        srcPath + srcFile);
       return;
     }
-    filename = tmpConfigFile;
+    pearyConfigFile = tmpPearyConfigFile;
   }
 
   mItems.clear();
-  QFile cfgFile(filename);
+  QFile cfgFile(pearyConfigFile);
   QTextStream input(&cfgFile);
   if (!cfgFile.open(QIODevice::ReadOnly)) {
     ui->tbLog->append("Error opening input file");
@@ -124,6 +123,18 @@ void ConfigCreatorView::parseConfig(const QString &pathToConfig) {
       }
     }
   }
+  srcFile = mConfigMisc.value("matrix_config").toString();
+  if (fileSrc == FileSrc::Local) {
+    // nothing particular to do, we are alrdy set up properly
+    loadMatrixConfig(srcFile);
+  } else if (fileSrc == FileSrc::SSH) {
+    if (!fetchViaSsh(tmpMatrixConfig, server, srcPath, srcFile)) {
+      ui->tbLog->append("Error copying file using scp from " + server +
+                        srcPath + srcFile);
+      return;
+    }
+    loadMatrixConfig(tmpMatrixConfig);
+  }
 }
 
 void ConfigCreatorView::saveConfig(const QString &fileName) {
@@ -166,6 +177,7 @@ void ConfigCreatorView::initConfig() {
   mConfigMisc["i2c_dev"] = "/dev/i2c-13";
   mConfigMisc["i2c_addr"] = 0x1C;
   mConfigMisc["clock_config"] = "clock_config.txt";
+  mConfigMisc["matrix_config"] = "matrix_config.txt";
 
   mConfigPower["vssa"] = ConfigPowerItem(1.3);
   mConfigPower["vdda"] = ConfigPowerItem(1.8);
@@ -342,6 +354,26 @@ void ConfigCreatorView::loadMatrixConfig(const QString &fileName) {
   }
 }
 
+bool ConfigCreatorView::deployViaSsh(const QString &localFile,
+                                     const QString &server,
+                                     const QString &targetPath,
+                                     const QString &targetFile) {
+  QString scpCmd = "scp " + localFile.trimmed() + " " + server.trimmed() +
+                   targetPath.trimmed() + targetFile.trimmed();
+
+  return system((scpCmd.toLocal8Bit().data())) == 0;
+}
+
+bool ConfigCreatorView::fetchViaSsh(const QString &localFile,
+                                    const QString &server,
+                                    const QString &srcPath,
+                                    const QString &srcFile) {
+  QString scpCmd = "scp " + server.trimmed() + srcPath.trimmed() +
+                   srcFile.trimmed() + " " + localFile.trimmed();
+
+  return system((scpCmd.toLocal8Bit().data())) == 0;
+}
+
 ConfigCreatorView::ConfigPixel *ConfigCreatorView::pixelConfig(int row,
                                                                int col) {
   Pixel pix;
@@ -354,38 +386,79 @@ ConfigCreatorView::ConfigPixel *
 ConfigCreatorView::pixelConfig(const Pixel &pix) {
   return mConfigMatrix[pix.row][pix.col];
 }
+/**
+ * @brief extracts different path layers from user input
+ * @param input user input from UI
+ * @param server the remote server to deploy to, is an output
+ * @param target the filename to which stuff should be stored to, is an output
+ * @return deployment target: local file or remote host
+ */
+ConfigCreatorView::FileSrc
+ConfigCreatorView::fileSrcFromInput(QString input, QString *server,
+                                    QString *filepath, QString *filename) {
 
-ConfigCreatorView::FileSrc ConfigCreatorView::fileSrcFromInput(QString &input) {
-  if (input.startsWith("ssh://")) {
-    input = input.remove("ssh://");
-    return FileSrc::SSH;
+  QRegularExpression regexp("(.+//)(.+:)(.+)");
+  /*
+   * 1st group matches something like "ssh://"
+   * 2nd one "192.168.130.7:"
+   * 3rd one "peary/config.cfg"
+   */
+  auto match = regexp.match(input);
+  if (match.hasMatch()) {
+    // captured(0) is the global match
+    // captured(i) accesses the different groups
+    if (match.captured(1) == "ssh://") {
+
+      *server = match.captured(2);
+      *filepath = match.captured(3);
+      regexp.setPattern(".+/"); // now seperate path and filename
+      // would match "/tmp/" in "/tmp/test.cfg"
+      match = regexp.match(*filepath);
+      *filename = filepath->remove(regexp);
+      *filepath = match.captured();
+
+      return FileSrc::SSH;
+    }
   }
-
+  regexp.setPattern(".+/"); // now seperate path and filename
+  // would match "/tmp/" in "/tmp/test.cfg"
+  match = regexp.match(input);
+  *filepath = match.captured();
+  *filename = input.remove(regexp);
   return FileSrc::Local;
 }
 
 void ConfigCreatorView::on_pbDeploy_clicked() {
 
-  QString outputFile;
-  const QString tmpConfig = "/tmp/configout.cfg";
-  QString target = ui->leOutputFile->text();
-  auto fileSrc = fileSrcFromInput(target);
+  QString server, targetPath, targetFile;
+  const QString tmpConfigPeary = "/tmp/configout.cfg";
+  const QString tmpMatrixConfig = "/tmp/matrix.cfg";
+  auto fileSrc = fileSrcFromInput(ui->leOutputFile->text(), &server,
+                                  &targetPath, &targetFile);
   if (fileSrc == FileSrc::Local) {
-    outputFile = target;
+    saveConfig(targetPath + targetFile);
+    saveMatrixConfig(targetPath +
+                     mConfigMisc.value("matrix_config").toString());
   } else if (fileSrc == FileSrc::SSH) {
-    outputFile = tmpConfig;
-  }
-  saveConfig(outputFile);
+    saveConfig(tmpConfigPeary);
+    if (!deployViaSsh(tmpConfigPeary, server, targetPath, targetFile)) {
+      ui->tbLog->append("Error deploying peary config file " + tmpConfigPeary +
+                        " to " + server + ":" + targetPath + targetFile);
+    }
 
-  if (fileSrc == FileSrc::SSH) {
-    QString scpCmd = "scp " + tmpConfig + " " + target;
-    if (system((scpCmd.toLocal8Bit().data())) != 0) {
-      ui->tbLog->append("Error deploying file: " + tmpConfig +
-                        "\n to: " + ui->leOutputFile->text());
+    saveMatrixConfig(tmpMatrixConfig);
+
+    // we store the matrix config in the same path as the peary config but use
+    // the "matrix_config" item in the peary config for the filename on the
+    // remote host
+
+    targetFile = mConfigMisc.value("matrix_config").toString();
+    if (!deployViaSsh(tmpMatrixConfig, server, targetPath, targetFile)) {
+      ui->tbLog->append("Error deploying peary config file " +
+                        mConfigMisc.value("matrix_config").toString() + " to " +
+                        server + ":" + targetPath + targetFile);
     }
   }
-
-  saveMatrixConfig("/tmp/matrix.cfg");
 }
 
 void ConfigCreatorView::on_pbClearLog_clicked() { ui->tbLog->clear(); }
