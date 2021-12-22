@@ -3,6 +3,7 @@
 
 #include <QFile>
 #include <QMessageBox>
+#include <QProcess>
 #include <QTextStream>
 #include <QtDebug>
 #include <memory>
@@ -358,20 +359,25 @@ bool ConfigCreatorView::deployViaSsh(const QString &localFile,
                                      const QString &server,
                                      const QString &targetPath,
                                      const QString &targetFile) {
-  QString scpCmd = "scp " + localFile.trimmed() + " " + server.trimmed() +
-                   targetPath.trimmed() + targetFile.trimmed();
+  QProcess proc;
+  QStringList args;
+  args << localFile.trimmed()
+       << server.trimmed() + targetPath.trimmed() + targetFile.trimmed();
 
-  return system((scpCmd.toLocal8Bit().data())) == 0;
+  proc.start("scp", args);
+  return proc.waitForFinished(3000); // 3s timeout
 }
 
 bool ConfigCreatorView::fetchViaSsh(const QString &localFile,
                                     const QString &server,
                                     const QString &srcPath,
                                     const QString &srcFile) {
-  QString scpCmd = "scp " + server.trimmed() + srcPath.trimmed() +
-                   srcFile.trimmed() + " " + localFile.trimmed();
-
-  return system((scpCmd.toLocal8Bit().data())) == 0;
+  QProcess proc;
+  QStringList args;
+  args << server.trimmed() + srcPath.trimmed() + srcFile.trimmed()
+       << localFile.trimmed();
+  proc.start("scp", args);
+  return proc.waitForFinished(3000); // 3s timeout
 }
 
 ConfigCreatorView::ConfigPixel *ConfigCreatorView::pixelConfig(int row,
@@ -454,9 +460,9 @@ void ConfigCreatorView::on_pbDeploy_clicked() {
 
     targetFile = mConfigMisc.value("matrix_config").toString();
     if (!deployViaSsh(tmpMatrixConfig, server, targetPath, targetFile)) {
-      ui->tbLog->append("Error deploying peary config file " +
-                        mConfigMisc.value("matrix_config").toString() + " to " +
-                        server + ":" + targetPath + targetFile);
+      ui->tbLog->append("Error deploying matrix config file " +
+                        tmpMatrixConfig + " to " + server + ":" + targetPath +
+                        targetFile);
     }
   }
 }
