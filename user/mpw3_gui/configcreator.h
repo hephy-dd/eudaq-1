@@ -27,8 +27,9 @@ private slots:
   void on_pbDeploy_clicked();
   void on_pbClearLog_clicked();
 
-  void pixelChosen(const QModelIndex &topLeft, const QModelIndex &bottomRight,
-                   const QVector<int> &roles = QVector<int>());
+  void pixelSelectionChanged(const QModelIndex &topLeft,
+                             const QModelIndex &bottomRight,
+                             const QVector<int> &roles = QVector<int>());
 
 private:
   struct ConfigPowerItem {
@@ -51,6 +52,10 @@ private:
     bool hb = false;
     bool sfout = false;
     int tdac = -1; // -1 means read from calibration file
+    bool inline isDefault() {
+      return masked == false && inj == false && hb == false && sfout == false &&
+             tdac == -1;
+    }
   };
   struct Pixel {
     int row = -1;
@@ -80,6 +85,8 @@ private:
   void saveConfig(const QString &fileName);
   void initConfig();
   void initPixelMatrix();
+  void pixelConfigChanged(const Pixel &pix);
+  void pixelConfigChanged(const Pixel &pix, QStandardItem *item);
   void populateModels();
   void updatePixelInputs();
   void saveMatrixConfig(const QString &fileName);

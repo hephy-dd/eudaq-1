@@ -19,7 +19,7 @@ ConfigCreatorView::ConfigCreatorView(QWidget *parent)
   populateModels();
 
   connect(&mModelMatrix, &QStandardItemModel::dataChanged, this,
-          &ConfigCreatorView::pixelChosen);
+          &ConfigCreatorView::pixelSelectionChanged);
 
   ui->sbTdac->setMaximum(15);
   ui->sbTdac->setMinimum(0);
@@ -43,7 +43,7 @@ void ConfigCreatorView::parseConfig(const QString &pathToConfig) {
 
   if (fileSrc == FileSrc::Local) {
     // nothing particular to do, we are alrdy set up properly
-    pearyConfigFile = srcFile;
+    pearyConfigFile = srcPath + srcFile;
   } else if (fileSrc == FileSrc::SSH) {
     if (!fetchViaSsh(tmpPearyConfigFile, server, srcPath, srcFile)) {
       ui->tbLog->append("Error copying file using scp from " + server +
@@ -56,7 +56,7 @@ void ConfigCreatorView::parseConfig(const QString &pathToConfig) {
   QFile cfgFile(pearyConfigFile);
   QTextStream input(&cfgFile);
   if (!cfgFile.open(QIODevice::ReadOnly)) {
-    ui->tbLog->append("Error opening input file");
+    ui->tbLog->append("Error opening input file " + pearyConfigFile);
     return;
   }
 
@@ -127,7 +127,7 @@ void ConfigCreatorView::parseConfig(const QString &pathToConfig) {
   srcFile = mConfigMisc.value("matrix_config").toString();
   if (fileSrc == FileSrc::Local) {
     // nothing particular to do, we are alrdy set up properly
-    loadMatrixConfig(srcFile);
+    loadMatrixConfig(srcPath + srcFile);
   } else if (fileSrc == FileSrc::SSH) {
     if (!fetchViaSsh(tmpMatrixConfig, server, srcPath, srcFile)) {
       ui->tbLog->append("Error copying file using scp from " + server +
@@ -216,8 +216,34 @@ void ConfigCreatorView::initPixelMatrix() {
   }
 }
 
+void ConfigCreatorView::pixelConfigChanged(const Pixel &pix) {
+
+  auto item = mModelMatrix.item(pix.row, pix.col);
+  pixelConfigChanged(pix, item);
+}
+
+void ConfigCreatorView::pixelConfigChanged(const Pixel &pix,
+                                           QStandardItem *item) {
+  auto conf = pixelConfig(pix);
+
+  QColor color;
+  if (conf->isDefault()) {
+    color = QColor("lightgreen");
+  } else {
+    // signal to the user that this pixel is not configured default
+    if (conf->masked) {
+      color = QColor("darkred");
+    } else {
+      color = QColor("yellow");
+    }
+  }
+
+  item->setData(color, Qt::DecorationRole);
+}
+
 void ConfigCreatorView::populateModels() {
   mModelMisc.clear();
+  mModelMatrix.clear();
   mModelPower.clear();
   auto miscKeys = mConfigMisc.keys();
 
@@ -260,14 +286,19 @@ void ConfigCreatorView::populateModels() {
   for (int i = 0; i < nRow; i++) {
     QList<QStandardItem *> row;
     for (int j = 0; j < nCol; j++) {
-      auto pixel = new QStandardItem();
-      pixel->setCheckable(true);
-      pixel->setData("row = " + QString::number(i) +
-                         ", col = " + QString::number(j),
-                     Qt::ToolTipRole);
-      row << pixel;
+      Pixel pix;
+      pix.row = i;
+      pix.col = j;
+      auto item = new QStandardItem();
+      pixelConfigChanged(pix, item);
+      item->setCheckable(true);
+      item->setData("row = " + QString::number(i) +
+                        ", col = " + QString::number(j),
+                    Qt::ToolTipRole);
+      row << item;
     }
     mModelMatrix.appendRow(row);
+    ui->tvMatrix->resizeColumnsToContents();
   }
 }
 
@@ -302,7 +333,7 @@ void ConfigCreatorView::saveMatrixConfig(const QString &fileName) {
     for (int i = 0; i < nCol; i++) {
       for (int j = 0; j < nRow; j++) {
         auto pixel = pixelConfig(j, i);
-        if (pixel->hb || pixel->inj || pixel->masked || pixel->tdac != -1) {
+        if (!pixel->isDefault()) {
 
           // this pixel is not configured the default way, we need to store it
 
@@ -341,22 +372,33 @@ void ConfigCreatorView::loadMatrixConfig(const QString &fileName) {
             "ERROR: invalid number of items in matrix config line: \n" + line);
         continue;
       }
-      ConfigPixel pixel;
+      ConfigPixel pixelConf;
       int col = splitted[0].toInt(&ok);
       int row = splitted[1].toUInt(&ok);
-      pixel.masked = splitted[2].toInt(&ok);
-      pixel.inj = splitted[3].toInt(&ok);
-      pixel.hb = splitted[4].toInt(&ok);
-      pixel.sfout = splitted[5].toInt(&ok);
-      pixel.tdac = splitted[6].toInt(&ok);
+      pixelConf.masked = splitted[2].toInt(&ok);
+      pixelConf.inj = splitted[3].toInt(&ok);
+      pixelConf.hb = splitted[4].toInt(&ok);
+      pixelConf.sfout = splitted[5].toInt(&ok);
+      pixelConf.tdac = splitted[6].toInt(&ok);
       if (!ok) {
         ui->tbLog->append(
-            "ERROR: converting strings to number ins matrix config line: \n" +
+            "ERROR: converting strings to number in matrix config line: \n" +
             line);
         continue;
       }
-      *pixelConfig(row, col) = pixel;
+      Pixel pix;
+      pix.row = row;
+      pix.col = col;
+      if (row < nRow && col < nCol) {
+        *pixelConfig(pix) = pixelConf;
+      } else {
+        ui->tbLog->append(
+            "Invalid matrix config entry! col / row exceeds range! line:\n" +
+            line);
+      }
     }
+  } else {
+    ui->tbLog->append("ERROR: opening matrix config file: " + fileName);
   }
 }
 
@@ -474,15 +516,9 @@ void ConfigCreatorView::on_pbDeploy_clicked() {
 
 void ConfigCreatorView::on_pbClearLog_clicked() { ui->tbLog->clear(); }
 
-void ConfigCreatorView::pixelChosen(const QModelIndex &topLeft,
-                                    const QModelIndex &bottomRight,
-                                    const QVector<int> &roles) {
-  ui->tbLog->append(
-      "pixel:" + QString::number(topLeft.row()) + " x " +
-      QString::number(topLeft.column()) + "  changed to: " +
-      QString::number(mModelMatrix.item(topLeft.row(), topLeft.column())
-                          ->data(Qt::CheckStateRole)
-                          .toBool()));
+void ConfigCreatorView::pixelSelectionChanged(const QModelIndex &topLeft,
+                                              const QModelIndex &bottomRight,
+                                              const QVector<int> &roles) {
   Pixel pix;
   pix.col = topLeft.column();
   pix.row = topLeft.row();
@@ -512,7 +548,10 @@ void ConfigCreatorView::on_pbInit_clicked() {
 }
 
 void ConfigCreatorView::on_cbMasked_stateChanged(int arg1) {
-  foreach (auto pix, mPixelToModify) { pixelConfig(pix)->masked = bool(arg1); }
+  foreach (auto pix, mPixelToModify) {
+    pixelConfig(pix)->masked = bool(arg1);
+    pixelConfigChanged(pix);
+  }
 }
 
 void ConfigCreatorView::on_cbManOverride_stateChanged(int arg1) {
@@ -523,18 +562,30 @@ void ConfigCreatorView::on_cbManOverride_stateChanged(int arg1) {
 }
 
 void ConfigCreatorView::on_sbTdac_valueChanged(int arg1) {
-  foreach (auto pix, mPixelToModify) { pixelConfig(pix)->tdac = arg1; }
+  foreach (auto pix, mPixelToModify) {
+    pixelConfig(pix)->tdac = arg1;
+    pixelConfigChanged(pix);
+  }
 }
 
 void ConfigCreatorView::on_cbInj_stateChanged(int arg1) {
-  foreach (auto pix, mPixelToModify) { pixelConfig(pix)->inj = arg1; }
+  foreach (auto pix, mPixelToModify) {
+    pixelConfig(pix)->inj = arg1;
+    pixelConfigChanged(pix);
+  }
 }
 
 void ConfigCreatorView::on_cbHb_stateChanged(int arg1) {
 
-  foreach (auto pix, mPixelToModify) { pixelConfig(pix)->hb = arg1; }
+  foreach (auto pix, mPixelToModify) {
+    pixelConfig(pix)->hb = arg1;
+    pixelConfigChanged(pix);
+  }
 }
 
 void ConfigCreatorView::on_cbSfout_stateChanged(int arg1) {
-  foreach (auto pix, mPixelToModify) { pixelConfig(pix)->sfout = arg1; }
+  foreach (auto pix, mPixelToModify) {
+    pixelConfig(pix)->sfout = arg1;
+    pixelConfigChanged(pix);
+  }
 }
