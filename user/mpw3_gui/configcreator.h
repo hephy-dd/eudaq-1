@@ -21,22 +21,16 @@ private slots:
   void on_cbInj_stateChanged(int arg1);
   void on_sbTdac_valueChanged(int arg1);
   void on_cbManOverride_stateChanged(int arg1);
-  void on_sbCol_valueChanged(int arg1);
-  void on_sbRow_valueChanged(int arg1);
   void on_cbMasked_stateChanged(int arg1);
   void on_pbInit_clicked();
   void on_pbParse_clicked();
   void on_pbDeploy_clicked();
   void on_pbClearLog_clicked();
 
-private:
-  struct ConfigItem {
-    QString key;
-    QString value;
-    bool enabled;
-    bool isComment;
-  };
+  void pixelChosen(const QModelIndex &topLeft, const QModelIndex &bottomRight,
+                   const QVector<int> &roles = QVector<int>());
 
+private:
   struct ConfigPowerItem {
     ConfigPowerItem() {
       this->voltage = 0.0;
@@ -61,6 +55,10 @@ private:
   struct Pixel {
     int row = -1;
     int col = -1;
+    // is needed by QList::remove
+    inline bool operator==(const Pixel &other) {
+      return this->col == other.col && this->row == other.row;
+    };
   };
 
   enum FileSrc { Local, SSH };
@@ -74,7 +72,7 @@ private:
   QMap<QString, ConfigPowerItem> mConfigPower;
   QStandardItemModel mModelPower;
   QStandardItemModel mModelMisc;
-  QList<ConfigItem> mItems;
+  QStandardItemModel mModelMatrix;
   QList<QList<ConfigPixel *>> mConfigMatrix;
   QList<Pixel> mPixelToModify;
 
@@ -84,7 +82,6 @@ private:
   void initPixelMatrix();
   void populateModels();
   void updatePixelInputs();
-  void setPixelToModify();
   void saveMatrixConfig(const QString &fileName);
   void loadMatrixConfig(const QString &fileName);
   bool deployViaSsh(const QString &localFile, const QString &server,

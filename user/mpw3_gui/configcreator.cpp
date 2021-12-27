@@ -9,17 +9,18 @@
 #include <memory>
 
 ConfigCreatorView::ConfigCreatorView(QWidget *parent)
-    : QWidget(parent), ui(new Ui::ConfigCreator), nCol(64), nRow(64) {
+    : QWidget(parent), ui(new Ui::ConfigCreator), nCol(32), nRow(128) {
   ui->setupUi(this);
 
   ui->tvPower->setModel(&mModelPower);
   ui->tvMisc->setModel(&mModelMisc);
-
+  ui->tvMatrix->setModel(&mModelMatrix);
   initConfig();
   populateModels();
 
-  ui->sbCol->setMaximum(nCol - 1);
-  ui->sbRow->setMaximum(nRow - 1); // start counting from 0
+  connect(&mModelMatrix, &QStandardItemModel::dataChanged, this,
+          &ConfigCreatorView::pixelChosen);
+
   ui->sbTdac->setMaximum(15);
   ui->sbTdac->setMinimum(0);
 }
@@ -52,7 +53,6 @@ void ConfigCreatorView::parseConfig(const QString &pathToConfig) {
     pearyConfigFile = tmpPearyConfigFile;
   }
 
-  mItems.clear();
   QFile cfgFile(pearyConfigFile);
   QTextStream input(&cfgFile);
   if (!cfgFile.open(QIODevice::ReadOnly)) {
@@ -214,8 +214,6 @@ void ConfigCreatorView::initPixelMatrix() {
     }
     mConfigMatrix.append(row);
   }
-
-  setPixelToModify();
 }
 
 void ConfigCreatorView::populateModels() {
@@ -258,9 +256,24 @@ void ConfigCreatorView::populateModels() {
     mModelPower.appendRow(row);
     row.clear();
   }
+
+  for (int i = 0; i < nRow; i++) {
+    QList<QStandardItem *> row;
+    for (int j = 0; j < nCol; j++) {
+      auto pixel = new QStandardItem();
+      pixel->setCheckable(true);
+      pixel->setData("row = " + QString::number(i) +
+                         ", col = " + QString::number(j),
+                     Qt::ToolTipRole);
+      row << pixel;
+    }
+    mModelMatrix.appendRow(row);
+  }
 }
 
 void ConfigCreatorView::updatePixelInputs() {
+  if (mPixelToModify.isEmpty())
+    return;
   auto pix = pixelConfig(mPixelToModify[0]);
 
   ui->cbMasked->setChecked(pix->masked);
@@ -274,14 +287,6 @@ void ConfigCreatorView::updatePixelInputs() {
   } else {
     ui->sbTdac->clear();
   }
-}
-
-void ConfigCreatorView::setPixelToModify() {
-  Pixel pix;
-  pix.col = ui->sbCol->value();
-  pix.row = ui->sbRow->value();
-  mPixelToModify.clear();
-  mPixelToModify << pix;
 }
 
 void ConfigCreatorView::saveMatrixConfig(const QString &fileName) {
@@ -469,6 +474,32 @@ void ConfigCreatorView::on_pbDeploy_clicked() {
 
 void ConfigCreatorView::on_pbClearLog_clicked() { ui->tbLog->clear(); }
 
+void ConfigCreatorView::pixelChosen(const QModelIndex &topLeft,
+                                    const QModelIndex &bottomRight,
+                                    const QVector<int> &roles) {
+  ui->tbLog->append(
+      "pixel:" + QString::number(topLeft.row()) + " x " +
+      QString::number(topLeft.column()) + "  changed to: " +
+      QString::number(mModelMatrix.item(topLeft.row(), topLeft.column())
+                          ->data(Qt::CheckStateRole)
+                          .toBool()));
+  Pixel pix;
+  pix.col = topLeft.column();
+  pix.row = topLeft.row();
+  if (mModelMatrix.item(topLeft.row(), topLeft.column())
+          ->data(Qt::CheckStateRole)
+          .toBool() == true) {
+    // this pixel got activated
+    mPixelToModify.append(pix);
+
+  } else {
+    // pixel got deactivated
+    mPixelToModify.removeAll(pix);
+  }
+
+  updatePixelInputs();
+}
+
 void ConfigCreatorView::on_pbInit_clicked() {
   if (QMessageBox::question(this, "Initializing",
                             "You are about to reset all values to default.\n"
@@ -482,18 +513,6 @@ void ConfigCreatorView::on_pbInit_clicked() {
 
 void ConfigCreatorView::on_cbMasked_stateChanged(int arg1) {
   foreach (auto pix, mPixelToModify) { pixelConfig(pix)->masked = bool(arg1); }
-}
-
-void ConfigCreatorView::on_sbRow_valueChanged(int arg1) {
-
-  setPixelToModify();
-  updatePixelInputs();
-}
-
-void ConfigCreatorView::on_sbCol_valueChanged(int arg1) {
-
-  setPixelToModify();
-  updatePixelInputs();
 }
 
 void ConfigCreatorView::on_cbManOverride_stateChanged(int arg1) {
@@ -512,6 +531,7 @@ void ConfigCreatorView::on_cbInj_stateChanged(int arg1) {
 }
 
 void ConfigCreatorView::on_cbHb_stateChanged(int arg1) {
+
   foreach (auto pix, mPixelToModify) { pixelConfig(pix)->hb = arg1; }
 }
 
