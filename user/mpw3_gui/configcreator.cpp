@@ -18,11 +18,13 @@ ConfigCreatorView::ConfigCreatorView(QWidget *parent)
   initConfig();
   populateModels();
 
-  connect(&mModelMatrix, &QStandardItemModel::dataChanged, this,
+  connect(&mModelMatrix, &QStandardItemModel::itemChanged, this,
           &ConfigCreatorView::pixelSelectionChanged);
 
   ui->sbTdac->setMaximum(15);
   ui->sbTdac->setMinimum(0);
+  QKeySequence seq("c");
+  ui->pbCheck->setShortcut(seq);
 }
 
 ConfigCreatorView::~ConfigCreatorView() { delete ui; }
@@ -303,9 +305,10 @@ void ConfigCreatorView::populateModels() {
 }
 
 void ConfigCreatorView::updatePixelInputs() {
-  if (mPixelToModify.isEmpty())
+  auto tmp = pixelToModify();
+  if (tmp.isEmpty())
     return;
-  auto pix = pixelConfig(mPixelToModify[0]);
+  auto pix = pixelConfig(tmp[0]);
 
   ui->cbMasked->setChecked(pix->masked);
   ui->cbInj->setChecked(pix->inj);
@@ -481,6 +484,25 @@ ConfigCreatorView::fileSrcFromInput(QString input, QString *server,
   return FileSrc::Local;
 }
 
+QList<ConfigCreatorView::Pixel> ConfigCreatorView::pixelToModify() {
+
+  QList<Pixel> list;
+  for (int row = 0; row < mModelMatrix.rowCount(); row++) {
+
+    for (int col = 0; col < mModelMatrix.columnCount(); col++) {
+
+      auto data = mModelMatrix.item(row, col)->data(Qt::CheckStateRole);
+      if (data == Qt::Checked) {
+        Pixel pix;
+        pix.col = col;
+        pix.row = row;
+        list << pix;
+      }
+    }
+  }
+  return list;
+}
+
 void ConfigCreatorView::on_pbDeploy_clicked() {
 
   QString server, targetPath, targetFile;
@@ -516,23 +538,7 @@ void ConfigCreatorView::on_pbDeploy_clicked() {
 
 void ConfigCreatorView::on_pbClearLog_clicked() { ui->tbLog->clear(); }
 
-void ConfigCreatorView::pixelSelectionChanged(const QModelIndex &topLeft,
-                                              const QModelIndex &bottomRight,
-                                              const QVector<int> &roles) {
-  Pixel pix;
-  pix.col = topLeft.column();
-  pix.row = topLeft.row();
-  if (mModelMatrix.item(topLeft.row(), topLeft.column())
-          ->data(Qt::CheckStateRole)
-          .toBool() == true) {
-    // this pixel got activated
-    mPixelToModify.append(pix);
-
-  } else {
-    // pixel got deactivated
-    mPixelToModify.removeAll(pix);
-  }
-
+void ConfigCreatorView::pixelSelectionChanged(QStandardItem *item) {
   updatePixelInputs();
 }
 
@@ -548,7 +554,7 @@ void ConfigCreatorView::on_pbInit_clicked() {
 }
 
 void ConfigCreatorView::on_cbMasked_stateChanged(int arg1) {
-  foreach (auto pix, mPixelToModify) {
+  foreach (auto pix, pixelToModify()) {
     pixelConfig(pix)->masked = bool(arg1);
     pixelConfigChanged(pix);
   }
@@ -562,14 +568,14 @@ void ConfigCreatorView::on_cbManOverride_stateChanged(int arg1) {
 }
 
 void ConfigCreatorView::on_sbTdac_valueChanged(int arg1) {
-  foreach (auto pix, mPixelToModify) {
+  foreach (auto pix, pixelToModify()) {
     pixelConfig(pix)->tdac = arg1;
     pixelConfigChanged(pix);
   }
 }
 
 void ConfigCreatorView::on_cbInj_stateChanged(int arg1) {
-  foreach (auto pix, mPixelToModify) {
+  foreach (auto pix, pixelToModify()) {
     pixelConfig(pix)->inj = arg1;
     pixelConfigChanged(pix);
   }
@@ -577,15 +583,45 @@ void ConfigCreatorView::on_cbInj_stateChanged(int arg1) {
 
 void ConfigCreatorView::on_cbHb_stateChanged(int arg1) {
 
-  foreach (auto pix, mPixelToModify) {
+  foreach (auto pix, pixelToModify()) {
     pixelConfig(pix)->hb = arg1;
     pixelConfigChanged(pix);
   }
 }
 
 void ConfigCreatorView::on_cbSfout_stateChanged(int arg1) {
-  foreach (auto pix, mPixelToModify) {
+  foreach (auto pix, pixelToModify()) {
     pixelConfig(pix)->sfout = arg1;
     pixelConfigChanged(pix);
+  }
+}
+
+void ConfigCreatorView::on_pbCheck_clicked() {
+
+  auto selection = ui->tvMatrix->selectionModel();
+  if (selection->selectedIndexes().isEmpty()) {
+    return;
+  }
+
+  int checkstate;
+  auto index = selection->selectedIndexes()[0];
+  auto currState = mModelMatrix.itemData(index);
+  if (currState[Qt::CheckStateRole] == Qt::Checked) {
+    checkstate = Qt::Unchecked;
+    // uncheck when checked and check when unchecked
+  } else {
+    checkstate = Qt::Checked;
+  }
+  QMap<int, QVariant> data;
+  data[Qt::CheckStateRole] = checkstate;
+
+  foreach (auto index, selection->selectedIndexes()) {
+    mModelMatrix.setItemData(index, data);
+    Pixel pix;
+    pix.row = index.row();
+    pix.col = index.column();
+    pixelConfigChanged(pix);
+    mModelMatrix.item(index.row(), index.column())->setCheckable(true);
+    // setdata somehow overwrites some values :/ , set them again
   }
 }

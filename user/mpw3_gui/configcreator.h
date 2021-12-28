@@ -16,6 +16,9 @@ public:
   ~ConfigCreatorView();
 
 private slots:
+  void on_pbCheck_clicked();
+
+private slots:
   void on_cbSfout_stateChanged(int arg1);
   void on_cbHb_stateChanged(int arg1);
   void on_cbInj_stateChanged(int arg1);
@@ -27,9 +30,7 @@ private slots:
   void on_pbDeploy_clicked();
   void on_pbClearLog_clicked();
 
-  void pixelSelectionChanged(const QModelIndex &topLeft,
-                             const QModelIndex &bottomRight,
-                             const QVector<int> &roles = QVector<int>());
+  void pixelSelectionChanged(QStandardItem *item);
 
 private:
   struct ConfigPowerItem {
@@ -79,7 +80,6 @@ private:
   QStandardItemModel mModelMisc;
   QStandardItemModel mModelMatrix;
   QList<QList<ConfigPixel *>> mConfigMatrix;
-  QList<Pixel> mPixelToModify;
 
   void parseConfig(const QString &pathToConfig);
   void saveConfig(const QString &fileName);
@@ -99,6 +99,7 @@ private:
   ConfigPixel *pixelConfig(const Pixel &pix);
   FileSrc fileSrcFromInput(QString input, QString *server, QString *filepath,
                            QString *filename);
+  QList<Pixel> pixelToModify();
 };
 
 #endif // CONFIGCREATOR_H
