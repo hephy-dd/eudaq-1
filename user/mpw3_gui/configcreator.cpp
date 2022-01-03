@@ -309,7 +309,7 @@ void ConfigCreatorView::updatePixelInputs() {
   if (tmp.isEmpty() || tmp.length() > 1) {
     // no selection or multiple items selected
     // which values should we be using when multiple items are checked?
-    // probably partially checked?
+    // TODO: probably partially checked?
     return;
   }
   auto pix = pixelConfig(tmp[0]);
@@ -327,9 +327,9 @@ void ConfigCreatorView::updatePixelInputs() {
   }
   if (pix->hb || pix->inj || pix->sfout || pix->tdac != -1) {
     // values are not default, so override has been performed
-    ui->cbManOverride->setCheckState(Qt::Checked);
+    ui->cbManOverride->setChecked(true);
   } else {
-    ui->cbManOverride->setCheckState(Qt::Unchecked);
+    ui->cbManOverride->setChecked(false);
   }
 }
 
