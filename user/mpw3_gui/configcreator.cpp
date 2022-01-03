@@ -9,7 +9,7 @@
 #include <memory>
 
 ConfigCreatorView::ConfigCreatorView(QWidget *parent)
-    : QWidget(parent), ui(new Ui::ConfigCreator), nCol(32), nRow(128) {
+    : QWidget(parent), ui(new Ui::ConfigCreator), nCol(64), nRow(64) {
   ui->setupUi(this);
 
   ui->tvPower->setModel(&mModelPower);
@@ -306,8 +306,12 @@ void ConfigCreatorView::populateModels() {
 
 void ConfigCreatorView::updatePixelInputs() {
   auto tmp = pixelToModify();
-  if (tmp.isEmpty())
+  if (tmp.isEmpty() || tmp.length() > 1) {
+    // no selection or multiple items selected
+    // which values should we be using when multiple items are checked?
+    // probably partially checked?
     return;
+  }
   auto pix = pixelConfig(tmp[0]);
 
   ui->cbMasked->setChecked(pix->masked);
@@ -320,6 +324,12 @@ void ConfigCreatorView::updatePixelInputs() {
     ui->sbTdac->setValue(pix->tdac);
   } else {
     ui->sbTdac->clear();
+  }
+  if (pix->hb || pix->inj || pix->sfout || pix->tdac != -1) {
+    // values are not default, so override has been performed
+    ui->cbManOverride->setCheckState(Qt::Checked);
+  } else {
+    ui->cbManOverride->setCheckState(Qt::Unchecked);
   }
 }
 
@@ -403,6 +413,16 @@ void ConfigCreatorView::loadMatrixConfig(const QString &fileName) {
   } else {
     ui->tbLog->append("ERROR: opening matrix config file: " + fileName);
   }
+}
+
+bool ConfigCreatorView::cbStateIsChecked(int state) {
+  // QCheckBox'es signal stateChanged emits a Qt::Checkstate enum value as an
+  // int convert it to bool
+
+  if (state == Qt::Checked) {
+    return true;
+  }
+  return false;
 }
 
 bool ConfigCreatorView::deployViaSsh(const QString &localFile,
@@ -555,16 +575,18 @@ void ConfigCreatorView::on_pbInit_clicked() {
 
 void ConfigCreatorView::on_cbMasked_stateChanged(int arg1) {
   foreach (auto pix, pixelToModify()) {
-    pixelConfig(pix)->masked = bool(arg1);
+    pixelConfig(pix)->masked = cbStateIsChecked(arg1);
     pixelConfigChanged(pix);
   }
 }
 
 void ConfigCreatorView::on_cbManOverride_stateChanged(int arg1) {
-  ui->cbInj->setEnabled(arg1);
-  ui->cbSfout->setEnabled(arg1);
-  ui->cbHb->setEnabled(arg1);
-  ui->sbTdac->setEnabled(arg1);
+  bool en = cbStateIsChecked(arg1);
+
+  ui->cbInj->setEnabled(en);
+  ui->cbSfout->setEnabled(en);
+  ui->cbHb->setEnabled(en);
+  ui->sbTdac->setEnabled(en);
 }
 
 void ConfigCreatorView::on_sbTdac_valueChanged(int arg1) {
@@ -576,22 +598,22 @@ void ConfigCreatorView::on_sbTdac_valueChanged(int arg1) {
 
 void ConfigCreatorView::on_cbInj_stateChanged(int arg1) {
   foreach (auto pix, pixelToModify()) {
-    pixelConfig(pix)->inj = arg1;
+    pixelConfig(pix)->inj = cbStateIsChecked(arg1);
     pixelConfigChanged(pix);
   }
 }
 
 void ConfigCreatorView::on_cbHb_stateChanged(int arg1) {
-
-  foreach (auto pix, pixelToModify()) {
-    pixelConfig(pix)->hb = arg1;
+  auto tmp = pixelToModify();
+  foreach (auto pix, tmp) {
+    pixelConfig(pix)->hb = cbStateIsChecked(arg1);
     pixelConfigChanged(pix);
   }
 }
 
 void ConfigCreatorView::on_cbSfout_stateChanged(int arg1) {
   foreach (auto pix, pixelToModify()) {
-    pixelConfig(pix)->sfout = arg1;
+    pixelConfig(pix)->sfout = cbStateIsChecked(arg1);
     pixelConfigChanged(pix);
   }
 }

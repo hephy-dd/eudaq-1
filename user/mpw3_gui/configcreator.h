@@ -91,6 +91,7 @@ private:
   void updatePixelInputs();
   void saveMatrixConfig(const QString &fileName);
   void loadMatrixConfig(const QString &fileName);
+  bool cbStateIsChecked(int state);
   bool deployViaSsh(const QString &localFile, const QString &server,
                     const QString &targetPath, const QString &targetFile);
   bool fetchViaSsh(const QString &localFile, const QString &server,
