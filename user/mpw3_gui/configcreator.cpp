@@ -30,11 +30,13 @@ ConfigCreatorView::~ConfigCreatorView() { delete ui; }
 void ConfigCreatorView::on_pbParse_clicked() {
   mConfigMisc.clear();
   mConfigPower.clear();
-  parseConfig(ui->leTemplateFile->text());
-  populateModels();
+  if (parseConfig(ui->leTemplateFile->text()) == 0) {
+    populateModels();
+    ui->tbLog->append("successfully parsed config files");
+  }
 }
 
-void ConfigCreatorView::parseConfig(const QString &pathToConfig) {
+int ConfigCreatorView::parseConfig(const QString &pathToConfig) {
   QString pearyConfigFile, server, srcPath, srcFile;
   const QString tmpPearyConfigFile = "/tmp/tmpconf.cfg";
   const QString tmpMatrixConfig = "/tmp/matrix.cfg";
@@ -48,7 +50,7 @@ void ConfigCreatorView::parseConfig(const QString &pathToConfig) {
     if (!fetchViaSsh(tmpPearyConfigFile, server, srcPath, srcFile)) {
       ui->tbLog->append("Error copying file using scp from " + server +
                         srcPath + srcFile);
-      return;
+      return -1;
     }
     pearyConfigFile = tmpPearyConfigFile;
   }
@@ -57,7 +59,7 @@ void ConfigCreatorView::parseConfig(const QString &pathToConfig) {
   QTextStream input(&cfgFile);
   if (!cfgFile.open(QIODevice::ReadOnly)) {
     ui->tbLog->append("Error opening input file " + pearyConfigFile);
-    return;
+    return -1;
   }
 
   int stage = -1;
@@ -132,10 +134,13 @@ void ConfigCreatorView::parseConfig(const QString &pathToConfig) {
     if (!fetchViaSsh(tmpMatrixConfig, server, srcPath, srcFile)) {
       ui->tbLog->append("Error copying file using scp from " + server +
                         srcPath + srcFile);
-      return;
+      return -1;
     }
-    loadMatrixConfig(tmpMatrixConfig);
+    if (loadMatrixConfig(tmpMatrixConfig) != 0) {
+      return -1;
+    }
   }
+  return 0;
 }
 
 void ConfigCreatorView::saveConfig(const QString &fileName) {
@@ -319,7 +324,7 @@ void ConfigCreatorView::updatePixelInputs() {
   ui->sbTdac->setValue(pix->tdac);
 }
 
-void ConfigCreatorView::saveMatrixConfig(const QString &fileName) {
+int ConfigCreatorView::saveMatrixConfig(const QString &fileName) {
   QFile file(fileName);
   if (file.open(QIODevice::WriteOnly)) {
     QTextStream out(&file);
@@ -346,13 +351,15 @@ void ConfigCreatorView::saveMatrixConfig(const QString &fileName) {
         }
       }
     }
+    return 0;
 
   } else {
     ui->tbLog->append("ERROR opening file " + fileName);
+    return -1;
   }
 }
 
-void ConfigCreatorView::loadMatrixConfig(const QString &fileName) {
+int ConfigCreatorView::loadMatrixConfig(const QString &fileName) {
 
   QFile file(fileName);
   if (file.open(QIODevice::ReadOnly)) {
@@ -398,7 +405,9 @@ void ConfigCreatorView::loadMatrixConfig(const QString &fileName) {
     }
   } else {
     ui->tbLog->append("ERROR: opening matrix config file: " + fileName);
+    return -1;
   }
+  return 0;
 }
 
 bool ConfigCreatorView::cbStateIsChecked(int state) {
@@ -506,11 +515,13 @@ QList<ConfigCreatorView::Pixel> ConfigCreatorView::pixelToModify() {
       }
     }
   }
+
   return list;
 }
 
 void ConfigCreatorView::on_pbDeploy_clicked() {
 
+  int error = 0;
   QString server, targetPath, targetFile;
   const QString tmpConfigPeary = "/tmp/configout.cfg";
   const QString tmpMatrixConfig = "/tmp/matrix.cfg";
@@ -518,16 +529,17 @@ void ConfigCreatorView::on_pbDeploy_clicked() {
                                   &targetPath, &targetFile);
   if (fileSrc == FileSrc::Local) {
     saveConfig(targetPath + targetFile);
-    saveMatrixConfig(targetPath +
-                     mConfigMisc.value("matrix_config").toString());
+    error &= saveMatrixConfig(targetPath +
+                              mConfigMisc.value("matrix_config").toString());
   } else if (fileSrc == FileSrc::SSH) {
     saveConfig(tmpConfigPeary);
     if (!deployViaSsh(tmpConfigPeary, server, targetPath, targetFile)) {
       ui->tbLog->append("Error deploying peary config file " + tmpConfigPeary +
                         " to " + server + ":" + targetPath + targetFile);
+      error |= 1;
     }
 
-    saveMatrixConfig(tmpMatrixConfig);
+    error |= saveMatrixConfig(tmpMatrixConfig);
 
     // we store the matrix config in the same path as the peary config but use
     // the "matrix_config" item in the peary config for the filename on the
@@ -538,7 +550,11 @@ void ConfigCreatorView::on_pbDeploy_clicked() {
       ui->tbLog->append("Error deploying matrix config file " +
                         tmpMatrixConfig + " to " + server + ":" + targetPath +
                         targetFile);
+      error |= 1;
     }
+  }
+  if (error == 0) {
+    ui->tbLog->append("successfully deployed config files");
   }
 }
 

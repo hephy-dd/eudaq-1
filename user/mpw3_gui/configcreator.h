@@ -80,7 +80,7 @@ private:
   QStandardItemModel mModelMatrix;
   QList<QList<ConfigPixel *>> mConfigMatrix;
 
-  void parseConfig(const QString &pathToConfig);
+  int parseConfig(const QString &pathToConfig);
   void saveConfig(const QString &fileName);
   void initConfig();
   void initPixelMatrix();
@@ -88,8 +88,8 @@ private:
   void pixelConfigChanged(const Pixel &pix, QStandardItem *item);
   void populateModels();
   void updatePixelInputs();
-  void saveMatrixConfig(const QString &fileName);
-  void loadMatrixConfig(const QString &fileName);
+  int saveMatrixConfig(const QString &fileName);
+  int loadMatrixConfig(const QString &fileName);
   bool cbStateIsChecked(int state);
   bool deployViaSsh(const QString &localFile, const QString &server,
                     const QString &targetPath, const QString &targetFile);
