@@ -23,7 +23,6 @@ private slots:
   void on_cbHb_stateChanged(int arg1);
   void on_cbInj_stateChanged(int arg1);
   void on_sbTdac_valueChanged(int arg1);
-  void on_cbManOverride_stateChanged(int arg1);
   void on_cbMasked_stateChanged(int arg1);
   void on_pbInit_clicked();
   void on_pbParse_clicked();

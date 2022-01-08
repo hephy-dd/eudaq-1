@@ -21,8 +21,6 @@ ConfigCreatorView::ConfigCreatorView(QWidget *parent)
   connect(&mModelMatrix, &QStandardItemModel::itemChanged, this,
           &ConfigCreatorView::pixelSelectionChanged);
 
-  ui->sbTdac->setMaximum(15);
-  ui->sbTdac->setMinimum(0);
   QKeySequence seq("c");
   ui->pbCheck->setShortcut(seq);
 }
@@ -318,19 +316,7 @@ void ConfigCreatorView::updatePixelInputs() {
   ui->cbInj->setChecked(pix->inj);
   ui->cbHb->setChecked(pix->hb);
   ui->cbSfout->setChecked(pix->sfout);
-  if (pix->tdac != -1) {
-    // someone insisted on specifying a manual TDAC value
-    ui->cbManOverride->setChecked(true);
-    ui->sbTdac->setValue(pix->tdac);
-  } else {
-    ui->sbTdac->clear();
-  }
-  if (pix->hb || pix->inj || pix->sfout || pix->tdac != -1) {
-    // values are not default, so override has been performed
-    ui->cbManOverride->setChecked(true);
-  } else {
-    ui->cbManOverride->setChecked(false);
-  }
+  ui->sbTdac->setValue(pix->tdac);
 }
 
 void ConfigCreatorView::saveMatrixConfig(const QString &fileName) {
@@ -578,15 +564,6 @@ void ConfigCreatorView::on_cbMasked_stateChanged(int arg1) {
     pixelConfig(pix)->masked = cbStateIsChecked(arg1);
     pixelConfigChanged(pix);
   }
-}
-
-void ConfigCreatorView::on_cbManOverride_stateChanged(int arg1) {
-  bool en = cbStateIsChecked(arg1);
-
-  ui->cbInj->setEnabled(en);
-  ui->cbSfout->setEnabled(en);
-  ui->cbHb->setEnabled(en);
-  ui->sbTdac->setEnabled(en);
 }
 
 void ConfigCreatorView::on_sbTdac_valueChanged(int arg1) {
