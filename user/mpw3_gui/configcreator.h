@@ -2,6 +2,7 @@
 #define CONFIGCREATOR_H
 
 #include <QStandardItemModel>
+#include <QTextStream>
 #include <QWidget>
 
 namespace Ui {
@@ -55,6 +56,13 @@ private:
     bool inline isDefault() {
       return masked == false && inj == false && hb == false && sfout == false &&
              tdac == -1;
+    }
+    QString inline toStr() {
+      QString s;
+      QTextStream str(&s);
+      str << "mask = " << masked << "\ninj = " << inj << "\nhb = " << hb
+          << "\nsfout = " << sfout << "\ntdac = " << tdac;
+      return s;
     }
   };
   struct Pixel {

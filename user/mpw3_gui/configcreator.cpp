@@ -244,6 +244,9 @@ void ConfigCreatorView::pixelConfigChanged(const Pixel &pix,
   }
 
   item->setData(color, Qt::DecorationRole);
+  QString tooltip = "pos = " + QString::number(pix.row) + ":" +
+                    QString::number(pix.col) + "\n" + pixelConfig(pix)->toStr();
+  item->setData(tooltip, Qt::ToolTipRole);
 }
 
 void ConfigCreatorView::populateModels() {
@@ -297,9 +300,6 @@ void ConfigCreatorView::populateModels() {
       auto item = new QStandardItem();
       pixelConfigChanged(pix, item);
       item->setCheckable(true);
-      item->setData("row = " + QString::number(i) +
-                        ", col = " + QString::number(j),
-                    Qt::ToolTipRole);
       row << item;
     }
     mModelMatrix.appendRow(row);
