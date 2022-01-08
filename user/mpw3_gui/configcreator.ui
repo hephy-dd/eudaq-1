@@ -29,12 +29,15 @@
         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;path to deploy the config to&lt;/p&gt;&lt;p&gt;eg.: ssh://root@192.168.130.7:config.txt (over ssh)&lt;/p&gt;&lt;p&gt;/tmp/config.txt (locally)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
        </property>
        <property name="text">
-        <string>ssh://root@192.168.130.7:test.cfg</string>
+        <string>ssh://root@192.168.130.7:config.cfg</string>
        </property>
       </widget>
      </item>
      <item row="6" column="1">
       <widget class="QPushButton" name="pbInit">
+       <property name="toolTip">
+        <string>Initialize config to default values</string>
+       </property>
        <property name="text">
         <string>Init</string>
        </property>
@@ -55,6 +58,9 @@
      </item>
      <item row="3" column="3">
       <widget class="QPushButton" name="pbDeploy">
+       <property name="toolTip">
+        <string>Deploy config to target beneath</string>
+       </property>
        <property name="text">
         <string>Deploy</string>
        </property>
@@ -99,7 +105,7 @@
         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;path to the input config&lt;/p&gt;&lt;p&gt;eg.: ssh://root@192.168.130.7:config.txt (over ssh)&lt;/p&gt;&lt;p&gt;/tmp/config.txt (locally)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
        </property>
        <property name="text">
-        <string>ssh://root@192.168.130.7:test.cfg</string>
+        <string>ssh://root@192.168.130.7:config.cfg</string>
        </property>
        <property name="clearButtonEnabled">
         <bool>false</bool>
@@ -108,6 +114,9 @@
      </item>
      <item row="8" column="2" colspan="2">
       <widget class="QPushButton" name="pbClearLog">
+       <property name="toolTip">
+        <string>Clear the log</string>
+       </property>
        <property name="text">
         <string>Clear</string>
        </property>
@@ -115,6 +124,9 @@
      </item>
      <item row="0" column="3">
       <widget class="QPushButton" name="pbParse">
+       <property name="toolTip">
+        <string>Load config from source beneath</string>
+       </property>
        <property name="text">
         <string>Load</string>
        </property>
@@ -169,7 +181,7 @@
               <bool>true</bool>
              </property>
              <property name="toolTip">
-              <string>enable injection
+              <string>Enable injection
 default = false</string>
              </property>
              <property name="text">
@@ -204,7 +216,7 @@ default = -1</string>
               <bool>true</bool>
              </property>
              <property name="toolTip">
-              <string>enable SFout
+              <string>Enable SFout
 default = false</string>
              </property>
              <property name="text">
@@ -218,7 +230,7 @@ default = false</string>
               <bool>true</bool>
              </property>
              <property name="toolTip">
-              <string>enable hitbus
+              <string>Enable hitbus
 default = false</string>
              </property>
              <property name="text">
@@ -228,6 +240,10 @@ default = false</string>
            </item>
            <item row="1" column="0">
             <widget class="QPushButton" name="pbCheck">
+             <property name="toolTip">
+              <string>Check all the boxes in the selection made in the table above
+Shortcut: 'c'</string>
+             </property>
              <property name="text">
               <string>&amp;Check Selection</string>
              </property>
