@@ -44,6 +44,25 @@ set(PROJECT_SOURCES
         controller.ui
 )
 
+option(MPW3_MONITOR "add monitor support" ON)
+
+if(MPW3_MONITOR)
+  message(STATUS "MPW3-monitor is to be built (MPW3_MONITOR=ON)")
+  #find_package(eudaq REQUIRED)
+  add_compile_definitions(BUILD_MONITOR)
+  #include_directories(${EUDAQ_INCLUDE_DIRS})
+else()
+  message(STATUS "EUDAQ-monitor is not to be built (MPW3_MONITOR=OFF)")
+  list(REMOVE_ITEM PROJECT_SOURCES
+      mpw3_monitor.h
+      mpw3_monitor.cc
+      monitorview.h
+      monitorview.cpp
+      monitorview.ui
+      mpw3_qt_if.cpp
+      mpw3_qt_if.h)
+endif()
+
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(MPW3_gui
         MANUAL_FINALIZATION
@@ -67,7 +86,11 @@ else()
     endif()
 endif()
 
+if(MPW3_MONITOR)
 target_link_libraries(MPW3_gui ${EUDAQ_CORE_LIBRARY} ${EUDAQ_THREADS_LIB} Qt${QT_VERSION_MAJOR}::Widgets)
+else()
+target_link_libraries(MPW3_gui Qt${QT_VERSION_MAJOR}::Widgets)
+endif()
 
 set_target_properties(MPW3_gui PROPERTIES
     MACOSX_BUNDLE_GUI_IDENTIFIER my.example.com

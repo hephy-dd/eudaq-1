@@ -1,25 +1,25 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
 
-#include <QGraphicsScene>
-#include <QPixmap>
-
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow) {
   ui->setupUi(this);
+  ui->tabWidget->clear();
 
   mSensorSize = 8;
 
-  mMonitorView = new MonitorView(mSensorSize, this);
   mConfigCreatorView = new ConfigCreatorView(this);
   mController = new Controller(this);
 
-  ui->tabWidget->clear();
-  ui->tabWidget->addTab(mMonitorView, "Monitor");
   ui->tabWidget->addTab(mConfigCreatorView, "Config");
   ui->tabWidget->addTab(mController, "Control");
 
-  ui->tabWidget->setCurrentIndex(2);
+#ifdef BUILD_MONITOR
+  mMonitorView = new MonitorView(mSensorSize, this);
+  ui->tabWidget->addTab(mMonitorView, "Monitor");
+#endif
+
+  ui->tabWidget->setCurrentIndex(1);
 }
 
 MainWindow::~MainWindow() { delete ui; }

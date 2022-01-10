@@ -3,7 +3,9 @@
 
 #include "configcreator.h"
 #include "controller.h"
+#ifdef BUILD_MONITOR
 #include "monitorview.h"
+#endif
 #include <QMainWindow>
 
 QT_BEGIN_NAMESPACE
@@ -22,7 +24,9 @@ public:
 private slots:
 private:
   Ui::MainWindow *ui;
+#ifdef BUILD_MONITOR
   MonitorView *mMonitorView;
+#endif
   ConfigCreatorView *mConfigCreatorView;
   Controller *mController;
 
