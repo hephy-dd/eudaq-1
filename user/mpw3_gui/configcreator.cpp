@@ -184,6 +184,7 @@ void ConfigCreatorView::initConfig() {
   mConfigMisc["i2c_addr"] = 0x1C;
   mConfigMisc["clock_config"] = "clock_config.txt";
   mConfigMisc["matrix_config"] = "matrix_config.txt";
+  mConfigMisc["calib_file"] = "calib.txt";
 
   mConfigPower["vssa"] = ConfigPowerItem(1.3);
   mConfigPower["vdda"] = ConfigPowerItem(1.8);
@@ -304,6 +305,9 @@ void ConfigCreatorView::populateModels() {
     }
     mModelMatrix.appendRow(row);
     ui->tvMatrix->resizeColumnsToContents();
+    ui->tvMisc->resizeColumnsToContents();
+    ui->tvPower->resizeColumnToContents(
+        0); // U and I looks too narrow when resizing
   }
 }
 
