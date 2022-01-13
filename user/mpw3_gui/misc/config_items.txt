@@ -1,5 +1,0 @@
-daq_mode -1
-supply1 1
-supply2 2
-nklnlnh 500
-klhjkjh 8
