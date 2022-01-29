@@ -38,3 +38,5 @@ cmake/eudaqTargets.cmake
 #QtCreator project file
 CMakeLists.txt.user
 *.autosave
+
+/config/*
