@@ -26,21 +26,36 @@ void Mpw3FastDataCollector::DoDisconnect(eudaq::ConnectionSPC idx) {
 }
 
 void Mpw3FastDataCollector::DoConfigure() {
-  mNoprint = 0;
   auto conf = GetConfiguration();
   if (conf) {
     conf->Print();
-    mNoprint = conf->Get("EX0_DISABLE_PRINT", 0);
 
-    std::string sender = conf->Get("sender", "");
+    SVD::XLNX_CTRL::BackEndID_t xlnxBoardId;
+    xlnxBoardId.m_Address = conf->Get("VME_ADDR", 0);
+    xlnxBoardId.m_Crate = conf->Get("CRATE_NO", 0);
+    mBackEndIDs.push_back(xlnxBoardId);
   }
 }
 
 void Mpw3FastDataCollector::DoReset() {
   std::unique_lock<std::mutex> lk(mMtxMap);
-  mNoprint = 0;
   mConnEvque.clear();
   mConnInactive.clear();
+}
+
+void Mpw3FastDataCollector::DoStartRun() {
+
+  mEventMerger = std::make_unique<SVD::XLNX_CTRL::FADCGbEMerger>(mBackEndIDs);
+
+  mEventBuilderRunning = std::make_unique<std::atomic<bool>>(true);
+  mEventBuilderThread = std::make_unique<std::thread>(
+      &Mpw3FastDataCollector::WriteEudaqEventLoop, this);
+}
+
+void Mpw3FastDataCollector::DoStopRun() {
+  mEventBuilderRunning->store(false, std::memory_order_release);
+  mEventBuilderThread->join();
+  mEventMerger.release();
 }
 
 void Mpw3FastDataCollector::DoReceive(eudaq::ConnectionSPC idx,
@@ -49,4 +64,28 @@ void Mpw3FastDataCollector::DoReceive(eudaq::ConnectionSPC idx,
    * not collecting events from Producers!
    * This function would get called when a producer sent an event to us
    */
+}
+
+void Mpw3FastDataCollector::WriteEudaqEventLoop() {
+  SVD::XLNX_CTRL::Event_t xlnxEvent;
+  auto euEvent = eudaq::Event::MakeShared("CaribouRD50_MPW3Event");
+  /*
+   * I know we are actually no Caribou, but this way we can use the same
+   * StandardEventConverter later on for UDP events and events from the
+   * CaribouProducer
+   */
+  while (mEventBuilderRunning->load(std::memory_order_acquire)) {
+    uint32_t eventN;
+    uint32_t triggerN;
+
+    if ((*mEventMerger)(xlnxEvent)) {
+      // simply put data in event, StandardEventConverter got time to extract
+      // triggerNr, pixelHit,...
+      euEvent->AddBlock(0, xlnxEvent.m_Data);
+      WriteEvent(euEvent);
+
+    } else {
+      continue;
+    }
+  }
 }

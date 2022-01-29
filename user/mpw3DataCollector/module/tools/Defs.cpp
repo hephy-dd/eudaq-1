@@ -196,7 +196,7 @@ FrontEndID_t::FrontEndID_t(const uint8_t layer, const uint8_t ladder,
 
 } // namespace QM
 
-namespace FADC_CTRL {
+namespace XLNX_CTRL {
 std::ostream &operator<<(std::ostream &rStream, const BackEndID_t id) noexcept {
   rStream << static_cast<int>(id.m_Crate) << '.'
           << static_cast<int>(id.m_Address);

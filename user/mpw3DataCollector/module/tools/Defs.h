@@ -514,7 +514,7 @@ std::ostream &operator<<(std::ostream &rStream,
                          const FrontEndID_t &rID) noexcept;
 } // end namespace QM
 
-namespace FADC_CTRL {
+namespace XLNX_CTRL {
 /**
  * @brief The BackEndID_t struct defines a unique ID for each BackEnd object:
  *  - FADC board
