@@ -159,16 +159,22 @@ namespace XLNX_CTRL {
 
   } // namespace UPDDetails
 
-  FADCGbEMerger::FADCGbEMerger(const std::vector<BackEndID_t> &rIDs) {
+  FADCGbEMerger::FADCGbEMerger(
+      const std::vector<BackEndID_t> &rIDs,
+      std::shared_ptr<UPDDetails::PayloadBuffer_t> testBuffer) {
     m_Event.m_Data.resize(rIDs.size());
     m_Event.m_Words = 0;
     m_Receivers.reserve(rIDs.size());
     m_Unpackers.reserve(rIDs.size());
 
-    for (const auto &rID : rIDs)
-      m_Receivers.emplace_back(rID);
-    for (auto &rReceiver : m_Receivers)
-      m_Unpackers.emplace_back(rReceiver.GetBuffer());
+    for (const auto &rID : rIDs) {
+      //      m_Receivers.emplace_back(rID);
+    }
+    m_Unpackers.emplace_back(*testBuffer);
+    //    for (auto &rReceiver : m_Receivers) {
+    //                  m_Unpackers.emplace_back(rReceiver.GetBuffer());
+
+    //    }
   }
 
   FADCGbEMerger::FADCGbEMerger(FADCGbEMerger &&rOther) noexcept
