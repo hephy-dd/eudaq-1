@@ -25,7 +25,7 @@ public:
 
 private:
   void WriteEudaqEventLoop();
-  void testLoop();
+  void dummyDataGenerator();
   std::mutex mMtxMap;
   std::map<eudaq::ConnectionSPC, std::deque<eudaq::EventSPC>> mConnEvque;
   std::set<eudaq::ConnectionSPC> mConnInactive;
@@ -38,5 +38,6 @@ private:
   std::vector<SVD::XLNX_CTRL::BackEndID_t> mBackEndIDs;
   eudaq::FileWriterSP mWriter;
   std::shared_ptr<SVD::XLNX_CTRL::UPDDetails::PayloadBuffer_t> mTestBuffer{};
+  std::chrono::high_resolution_clock::time_point mStartTime;
 };
 #endif // MPW3_DATACOLLECTOR_H

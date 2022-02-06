@@ -53,9 +53,11 @@ void Mpw3FastDataCollector::DoStartRun() {
   mEventBuilderRunning = std::make_unique<std::atomic<bool>>(true);
   mEventBuilderThread = std::make_unique<std::thread>(
       &Mpw3FastDataCollector::WriteEudaqEventLoop, this);
-  mTestThread =
-      std::make_unique<std::thread>(&Mpw3FastDataCollector::testLoop, this);
+  mTestThread = std::make_unique<std::thread>(
+      &Mpw3FastDataCollector::dummyDataGenerator, this);
   mTestRunning = std::make_unique<std::atomic<bool>>(true);
+
+  mStartTime = std::chrono::high_resolution_clock::now();
 }
 
 void Mpw3FastDataCollector::DoStopRun() {
@@ -78,10 +80,13 @@ void Mpw3FastDataCollector::DoReceive(eudaq::ConnectionSPC idx,
 void Mpw3FastDataCollector::WriteEudaqEventLoop() {
   SVD::XLNX_CTRL::Event_t xlnxEvent;
   uint32_t nEuEvent = 0;
+  uint32_t idleLoops = 0;
+  std::chrono::high_resolution_clock::time_point lastTime =
+      std::chrono::high_resolution_clock::now();
   auto euEvent = eudaq::Event::MakeShared("CaribouRD50_MPW3Event");
   /*
    * I know we are actually no Caribou, but this way we can use the same
-   * StandardEventConverter later on for UDP events and events from the
+   * StandardEventConverter later on for Xilinx events and events from the
    * CaribouProducer
    */
   while (mEventBuilderRunning->load(std::memory_order_acquire)) {
@@ -89,36 +94,61 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
       // simply put data in event, StandardEventConverter got time to extract
       // triggerNr, pixelHit,...
 
-      if (nEuEvent++ % 100 == 0) {
-        std::cout << "writing euEvent #" << nEuEvent << "\n" << std::flush;
+      if (nEuEvent++ % 100000 == 0) {
+        auto duration = std::chrono::high_resolution_clock::now() - lastTime;
+        std::cout << "writing euEvent #" << nEuEvent
+                  << " time = " << double(duration.count())
+                  << " idle = " << idleLoops << "\n";
+        lastTime = std::chrono::high_resolution_clock::now();
       }
-      euEvent->AddBlock(0, xlnxEvent.m_Data);
+      for (int i = 0; i < xlnxEvent.m_Data.size(); i++) {
+        euEvent->AddBlock(
+            0, xlnxEvent.m_Data[i]); // there might be more than 1 unpacker
+                                     // assigned to this merger
+      }
+      euEvent->SetEventN(xlnxEvent.m_EventNr);
       WriteEvent(euEvent);
 
     } else {
+      idleLoops++;
       continue;
     }
   }
 }
 
-void Mpw3FastDataCollector::testLoop() {
+void Mpw3FastDataCollector::dummyDataGenerator() {
   const uint32_t head = 0xC << 28;
   const uint32_t tail = 0xE << 28;
   uint32_t packageNmb = 0;
-  SVD::XLNX_CTRL::UPDDetails::Payload_t data;
+  SVD::XLNX_CTRL::UPDDetails::Payload_t data; // hier den vector vorher resizen!
+  data.reserve(19);
+  std::chrono::high_resolution_clock::time_point lastTime =
+      std::chrono::high_resolution_clock::now();
+
   while (mTestRunning->load(std::memory_order_acquire)) {
     data.clear();
-    packageNmb++;
-    if (packageNmb % 100 == 0) {
-      std::cout << "sending pack " << packageNmb << "\n" << std::flush;
+    if (packageNmb++ % 100000 == 0) {
+      auto duration = std::chrono::high_resolution_clock::now() - lastTime;
+      //      Hao: wenn du ein bench mark machst NIE std::endl oder std::flush
+      //      in cout verwenden! io in einen high rate code muss gebuffert
+      //      werden.
+
+      std::cout << "sending pack " << packageNmb
+                << " time = " << double(duration.count()) << "\n";
+      lastTime = std::chrono::high_resolution_clock::now();
     }
     data.push_back(head);
     for (int i = 0; i < 16; i++) {
-      data.push_back(std::rand());
+      data.push_back(packageNmb);
     }
     data.push_back(tail);
     data.push_back(packageNmb << 8);
-    mTestBuffer->Push(data);
-    std::this_thread::sleep_for(std::chrono::nanoseconds(10));
+    while (
+        !mTestBuffer->Push(data) &&
+        mTestRunning->load(
+            std::memory_order_relaxed)) { // returns false if the push was not
+      // successfull, ie buffer full.
+      std::this_thread::sleep_for(std::chrono::nanoseconds(1));
+    }
   }
 }

@@ -184,9 +184,10 @@ namespace XLNX_CTRL {
   FADCGbEMerger::~FADCGbEMerger() { this->Exit(); }
 
   bool FADCGbEMerger::operator()(Event_t &rEvent) noexcept {
-    if (std::any_of(
-            std::begin(m_Unpackers), std::end(m_Unpackers),
-            [](const auto &rUnpacker) noexcept { return rUnpacker.IsEmpty(); }))
+    if (std::any_of(std::begin(m_Unpackers), std::end(m_Unpackers),
+                    [](const auto &rUnpacker) noexcept {
+                      return rUnpacker.IsEmpty();
+                    })) // do nothing when unpackers have no data
       return false;
 
     rEvent.m_Data.resize(m_Unpackers.size());
