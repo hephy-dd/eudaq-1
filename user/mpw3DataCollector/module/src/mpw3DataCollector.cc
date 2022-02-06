@@ -96,14 +96,15 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
 
       if (nEuEvent++ % 100000 == 0) {
         auto duration = std::chrono::high_resolution_clock::now() - lastTime;
-        std::cout << "writing euEvent #" << nEuEvent
-                  << " time = " << double(duration.count())
-                  << " idle = " << idleLoops << "\n";
+        std::cout << "writing euEvent " << nEuEvent << " perf = "
+                  << double(32 * xlnxEvent.m_Data.front().size()) * 1e5 /
+                         (double(duration.count()) * 1e-9)
+                  << " Bit/s\n";
         lastTime = std::chrono::high_resolution_clock::now();
       }
       for (int i = 0; i < xlnxEvent.m_Data.size(); i++) {
         euEvent->AddBlock(
-            0, xlnxEvent.m_Data[i]); // there might be more than 1 unpacker
+            i, xlnxEvent.m_Data[i]); // there might be more than 1 unpacker
                                      // assigned to this merger
       }
       euEvent->SetEventN(xlnxEvent.m_EventNr);
@@ -120,21 +121,18 @@ void Mpw3FastDataCollector::dummyDataGenerator() {
   const uint32_t head = 0xC << 28;
   const uint32_t tail = 0xE << 28;
   uint32_t packageNmb = 0;
-  SVD::XLNX_CTRL::UPDDetails::Payload_t data; // hier den vector vorher resizen!
+  SVD::XLNX_CTRL::UPDDetails::Payload_t data;
   data.reserve(19);
-  std::chrono::high_resolution_clock::time_point lastTime =
-      std::chrono::high_resolution_clock::now();
+  auto lastTime = std::chrono::high_resolution_clock::now();
 
   while (mTestRunning->load(std::memory_order_acquire)) {
     data.clear();
     if (packageNmb++ % 100000 == 0) {
       auto duration = std::chrono::high_resolution_clock::now() - lastTime;
-      //      Hao: wenn du ein bench mark machst NIE std::endl oder std::flush
-      //      in cout verwenden! io in einen high rate code muss gebuffert
-      //      werden.
 
-      std::cout << "sending pack " << packageNmb
-                << " time = " << double(duration.count()) << "\n";
+      std::cout << "sending pack " << packageNmb << " perf = "
+                << double(18 * 32) * 1e5 / (double(duration.count()) * 1e-9)
+                << " Bit/s\n";
       lastTime = std::chrono::high_resolution_clock::now();
     }
     data.push_back(head);
