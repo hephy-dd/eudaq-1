@@ -1,3 +1,4 @@
+#include "../tools/Defs.h"
 #include "mpw3_datacollector.h"
 
 namespace {
@@ -99,13 +100,13 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
         std::cout << "writing euEvent " << nEuEvent << " perf = "
                   << double(32 * xlnxEvent.m_Data.front().size()) * 1e5 /
                          (double(duration.count()) * 1e-9)
-                  << " Bit/s\n";
+                  << " Bit/s euEventBlocks = " << euEvent->NumBlocks() << "\n";
         lastTime = std::chrono::high_resolution_clock::now();
       }
       for (int i = 0; i < xlnxEvent.m_Data.size(); i++) {
-        euEvent->AddBlock(
-            i, xlnxEvent.m_Data[i]); // there might be more than 1 unpacker
-                                     // assigned to this merger
+        euEvent->AddBlock(i, xlnxEvent.m_Data[i]);
+        // there might be more than 1 unpacker
+        // assigned to this merger
       }
       euEvent->SetEventN(xlnxEvent.m_EventNr);
       WriteEvent(euEvent);
@@ -118,11 +119,12 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
 }
 
 void Mpw3FastDataCollector::dummyDataGenerator() {
-  const uint32_t head = 0xC << 28;
-  const uint32_t tail = 0xE << 28;
+  const uint32_t head = 0x57 << 24;
+  const uint32_t tail = 0xE0 << 24;
+  const int nData = 4000 / sizeof(uint32_t); // min = 4000, max = 8000
   uint32_t packageNmb = 0;
   SVD::XLNX_CTRL::UPDDetails::Payload_t data;
-  data.reserve(19);
+  data.reserve(nData + 2 + 1);
   auto lastTime = std::chrono::high_resolution_clock::now();
 
   while (mTestRunning->load(std::memory_order_acquire)) {
@@ -131,12 +133,12 @@ void Mpw3FastDataCollector::dummyDataGenerator() {
       auto duration = std::chrono::high_resolution_clock::now() - lastTime;
 
       std::cout << "sending pack " << packageNmb << " perf = "
-                << double(18 * 32) * 1e5 / (double(duration.count()) * 1e-9)
+                << double(nData * 32) * 1e5 / (double(duration.count()) * 1e-9)
                 << " Bit/s\n";
       lastTime = std::chrono::high_resolution_clock::now();
     }
     data.push_back(head);
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i < nData; i++) {
       data.push_back(packageNmb);
     }
     data.push_back(tail);
@@ -146,7 +148,7 @@ void Mpw3FastDataCollector::dummyDataGenerator() {
         mTestRunning->load(
             std::memory_order_relaxed)) { // returns false if the push was not
       // successfull, ie buffer full.
-      std::this_thread::sleep_for(std::chrono::nanoseconds(1));
+      //      std::this_thread::sleep_for(std::chrono::nanoseconds(-1));
     }
   }
 }

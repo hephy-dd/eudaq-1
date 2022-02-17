@@ -123,11 +123,23 @@ namespace SVD {
         }
 
         static inline auto IsMainHeader(const Defs::VMEData_t &rWord) noexcept {
-          return ((rWord >> 28) & 0xe) == 0xc;
+          /* start of frame comes as 0b10101111{0/1}xxx
+           * 0/1: base (0) or piggy(1)
+           * at this stage we don't care if piggy or base
+           * xxx n Bits to fill up 32 bit word
+           * {0/1}xxx is 24 bit in total
+           */
+          return ((rWord >> 24) & 0x57) == 0x57;
         }
 
         static inline auto IsTrailer(const Defs::VMEData_t &rWord) noexcept {
-          return 0xe == ((rWord >> 28) & 0xf);
+          /* end of frame comes as 0b11100000{0/1}xxx
+           * 0/1: base (0) or piggy(1)
+           * at this stage we don't care if piggy or base
+           * xxx n Bits to fill up 32 bit word
+           * {0/1}xxx is 24 bit in total
+           */
+          return ((rWord >> 24) & 0xe0) == 0xe0;
         }
 
         inline auto PushFADCFrame(FADCPayload_t &rFADC,
