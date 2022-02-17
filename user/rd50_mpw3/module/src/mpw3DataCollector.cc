@@ -84,7 +84,7 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
   uint32_t idleLoops = 0;
   std::chrono::high_resolution_clock::time_point lastTime =
       std::chrono::high_resolution_clock::now();
-  auto euEvent = eudaq::Event::MakeShared("CaribouRD50_MPW3Event");
+  auto euEvent = eudaq::Event::MakeShared("Mpw3FrameEvent");
   /*
    * I know we are actually no Caribou, but this way we can use the same
    * StandardEventConverter later on for Xilinx events and events from the
