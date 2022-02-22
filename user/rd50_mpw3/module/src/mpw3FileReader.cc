@@ -38,6 +38,10 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
     m_des->PreRead(id);
     ev =
         eudaq::Factory<eudaq::Event>::Create<eudaq::Deserializer &>(id, *m_des);
+    if (ev != nullptr) {
+      std::cout << "read mpw3FrameEvent; blocks: " << ev->GetNumBlock()
+                << " size [0] = " << ev->GetBlock(0).size() << "\n";
+    }
     return std::move(ev);
   } else
     return nullptr;

@@ -79,36 +79,33 @@ void Mpw3FastDataCollector::DoReceive(eudaq::ConnectionSPC idx,
 }
 
 void Mpw3FastDataCollector::WriteEudaqEventLoop() {
-  SVD::XLNX_CTRL::Event_t xlnxEvent;
+  SVD::XLNX_CTRL::Event_t frame;
   uint32_t nEuEvent = 0;
   uint32_t idleLoops = 0;
   std::chrono::high_resolution_clock::time_point lastTime =
       std::chrono::high_resolution_clock::now();
   auto euEvent = eudaq::Event::MakeShared("Mpw3FrameEvent");
-  /*
-   * I know we are actually no Caribou, but this way we can use the same
-   * StandardEventConverter later on for Xilinx events and events from the
-   * CaribouProducer
-   */
+
   while (mEventBuilderRunning->load(std::memory_order_acquire)) {
-    if ((*mEventMerger)(xlnxEvent)) {
+    if ((*mEventMerger)(frame)) {
       // simply put data in event, StandardEventConverter got time to extract
       // triggerNr, pixelHit,...
 
       if (nEuEvent++ % 100000 == 0) {
         auto duration = std::chrono::high_resolution_clock::now() - lastTime;
         std::cout << "writing euEvent " << nEuEvent << " perf = "
-                  << double(32 * xlnxEvent.m_Data.front().size()) * 1e5 /
+                  << double(32 * frame.m_Data.front().size()) * 1e5 /
                          (double(duration.count()) * 1e-9)
-                  << " Bit/s euEventBlocks = " << euEvent->NumBlocks() << "\n";
+                  << " Bit/s \n";
+
         lastTime = std::chrono::high_resolution_clock::now();
       }
-      for (int i = 0; i < xlnxEvent.m_Data.size(); i++) {
-        euEvent->AddBlock(i, xlnxEvent.m_Data[i]);
+      for (int i = 0; i < frame.m_Data.size(); i++) {
+        euEvent->AddBlock(i, frame.m_Data[i]);
         // there might be more than 1 unpacker
         // assigned to this merger
       }
-      euEvent->SetEventN(xlnxEvent.m_EventNr);
+      euEvent->SetEventN(frame.m_EventNr);
       WriteEvent(euEvent);
 
     } else {
@@ -121,7 +118,7 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
 void Mpw3FastDataCollector::dummyDataGenerator() {
   const uint32_t head = 0x57 << 24;
   const uint32_t tail = 0xE0 << 24;
-  const int nData = 4000 / sizeof(uint32_t); // min = 4000, max = 8000
+  const int nData = 4000 / sizeof(uint32_t); // min = 4000 bit, max = 8000 bit
   uint32_t packageNmb = 0;
   SVD::XLNX_CTRL::UPDDetails::Payload_t data;
   data.reserve(nData + 2 + 1);
@@ -138,9 +135,12 @@ void Mpw3FastDataCollector::dummyDataGenerator() {
       lastTime = std::chrono::high_resolution_clock::now();
     }
     data.push_back(head);
+    uint32_t dummy;
     for (int i = 0; i < nData; i++) {
-      data.push_back(packageNmb);
+      dummy = std::rand();
+      data.push_back(dummy);
     }
+
     data.push_back(tail);
     data.push_back(packageNmb << 8);
     while (

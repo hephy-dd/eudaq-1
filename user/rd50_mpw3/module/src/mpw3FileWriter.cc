@@ -36,10 +36,12 @@ void Mpw3FileWriter::WriteEvent(eudaq::EventSPC ev) {
     std::strftime(time_buff, sizeof(time_buff), "%y%m%d%H%M%S",
                   std::localtime(&time_now));
     std::string time_str(time_buff);
-    m_ser.reset(new eudaq::FileSerializer((eudaq::FileNamer(m_filepattern)
-                                               .Set('X', ".mpw3raw")
-                                               .Set('R', run_n)
-                                               .Set('D', time_str))));
+    m_ser.reset(new eudaq::FileSerializer(
+        (eudaq::FileNamer(m_filepattern)
+             .Set('X',
+                  ".mpw3raw") // this line is the only difference to a native fw
+             .Set('R', run_n)
+             .Set('D', time_str))));
     m_run_n = run_n;
   }
   if (!m_ser)
