@@ -116,7 +116,7 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
 }
 
 void Mpw3FastDataCollector::dummyDataGenerator() {
-  const uint32_t head = 0x57 << 24;
+  const uint32_t head = 0xAF << 24;
   const uint32_t tail = 0xE0 << 24;
   const int nData = 4000 / sizeof(uint32_t); // min = 4000 bit, max = 8000 bit
   uint32_t packageNmb = 0;
