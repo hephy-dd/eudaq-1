@@ -11,7 +11,7 @@ public:
 
 private:
   struct Hit {
-    uint32_t ovflwSOF, ovflwEOF;
+    DefsMpw3::ts_t ovflwSOF, ovflwEOF;
     double avgFrameOvflw;
     uint8_t dcol;
     uint8_t pix;
@@ -23,7 +23,7 @@ private:
 
   static constexpr int sizeEvtQueue = 3;
 
-  void processFrame(const eudaq::EventUP &frame);
+  bool processFrame(const eudaq::EventUP &frame);
   void finalizePrefab(const PrefabEvt &prefab);
 
   std::unique_ptr<eudaq::FileDeserializer> mDes;
