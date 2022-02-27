@@ -20,6 +20,7 @@ Mpw3FileReader::Mpw3FileReader(const std::string &filename)
 eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
   if (!mDes) {
     mDes.reset(new eudaq::FileDeserializer(mFilename));
+    mStartTime = std::chrono::high_resolution_clock::now();
     if (!mDes)
       EUDAQ_THROW("unable to open file: " + mFilename);
   }
@@ -36,7 +37,17 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
         ev = eudaq::Factory<eudaq::Event>::Create<eudaq::Deserializer &>(id,
                                                                          *mDes);
       } else {
-        return nullptr;
+        auto tConversion =
+            std::chrono::high_resolution_clock::now() - mStartTime;
+        std::cout << "\n finished " << mFrameCnt << " frames and " << mEventCnt
+                  << " events in " << double(tConversion.count()) * 1e-9
+                  << "[s]\n";
+        std::cout << "This corresponds to a speed of "
+                  << double(tConversion.count()) / double(mFrameCnt) * 1e-6
+                  << "[ms] per frame and "
+                  << double(tConversion.count()) / double(mEventCnt) * 1e-6
+                  << "[ms] per event\n";
+        return nullptr; // no more data left, we finished whole file
       }
 
       if (processFrame(ev)) {
@@ -44,9 +55,6 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
       } else {
         EUDAQ_WARN("Error processing frame; skipping this one");
         continue;
-      }
-      if (!mDes->HasData()) {
-        return nullptr; // we finished the whole file
       }
     }
 
@@ -62,7 +70,7 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
     //    }
 
     /*
-     * Time-Bin-Matching upcoming..
+     * Event-Building + Time-Bin-Matching upcoming..
      *
      * 1) We extract hits sorted in double columns from current buffer
      * 2) We check for overflows in the specific double columns.
@@ -73,6 +81,8 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
      * 4) Sort buffer in terms of global timestamps
      * 5) Merge hits with similar timestamps to events
      */
+
+    auto tStartEvtProcess = std::chrono::high_resolution_clock::now();
 
     std::vector<std::vector<Hit>::iterator>
         hitsSortedByDCol[DefsMpw3::dimSensorCol / 2];
@@ -88,6 +98,7 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
 
     //    std::ofstream outSorted("sorted.csv");
     //    outSorted << Hit::strHeader();
+
     for (int dcol = 0; dcol < DefsMpw3::dimSensorCol / 2; dcol++) {
       const auto &currDCol = hitsSortedByDCol[dcol];
       DefsMpw3::ts_t ovflwCnt = 0;
@@ -144,15 +155,15 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
         [](const Hit &h1, const Hit &h2) { return h1.globalTs < h2.globalTs; });
 
     auto endTimewindow = mHitBuffer.begin();
-    int evtNmb = 0;
     int initBuffSize = mHitBuffer.size();
     do { // event building based on global TS
-      evtNmb++;
       endTimewindow = std::find_if(
           mHitBuffer.begin(), mHitBuffer.end(), [&](const Hit &hit) {
             return hit.globalTs - mHitBuffer.begin()->globalTs >
                    DefsMpw3::dTSameEvt;
           });
+      endTimewindow--; // we went 1 too far, found index no more belongs to
+      // current timewindow => --
 
       //      if (evtNmb == 1) {
       //        std::ofstream outTsOrdered("timestamp_ordererd.csv");
@@ -163,10 +174,7 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
       //      }
 
       PrefabEvt prefab;
-      for (auto i = mHitBuffer.begin(); i < (endTimewindow - 1);
-           i++) // we went 1 too far, found index no more belongs to
-      // current timewindow => -1
-      {
+      for (auto i = mHitBuffer.begin(); i < endTimewindow; i++) {
         prefab.push_back(*i);
       }
       mHitBuffer.erase(mHitBuffer.begin(),
@@ -192,8 +200,6 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
       }
     } while (endTimewindow != mHitBuffer.end());
 
-    return nullptr; // delete me!!!
-
     if (mTimeStampedEvents.size() > 0) {
       auto retval = mTimeStampedEvents.front();
       mTimeStampedEvents.erase(mTimeStampedEvents.begin());
@@ -212,9 +218,9 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
 
 bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
 
-  static uint32_t frameCnt = 0;
-
-  std::cout << "\rprocessing Frame #" << frameCnt++ << std::flush;
+  static auto lastT = std::chrono::high_resolution_clock::now();
+  std::cout << "\rprocessing Frame #" << mFrameCnt << " Event #" << mEventCnt
+            << std::flush;
 
   if (frame == nullptr) {
     EUDAQ_DEBUG("frame to process == nullptr");
@@ -267,10 +273,20 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
     mHitBuffer.push_back(hit);
   }
 
+  auto tmp = std::chrono::high_resolution_clock::now();
+  mTimeForFrame = tmp - lastT;
+  lastT = tmp;
+  mFrameCnt++;
   return true;
 }
 
 void Mpw3FileReader::finalizePrefab(const PrefabEvt &prefab) {
+
+  static auto lastT = std::chrono::high_resolution_clock::now();
+
+  if (prefab.size() == 0) {
+    return;
+  }
 
   auto euEvent = eudaq::Event::MakeShared("MPW3PreprocessedEvent");
 
@@ -311,4 +327,9 @@ void Mpw3FileReader::finalizePrefab(const PrefabEvt &prefab) {
    * this afterwards needs to be converted by a Raw->StdEventConverter for
    * actual analysis
    */
+
+  mEventCnt++;
+  auto tmp = std::chrono::high_resolution_clock::now();
+  mTimeForEvent = tmp - lastT;
+  lastT = tmp;
 }

@@ -1,5 +1,7 @@
 #ifndef MPW3FILEREADER_H
 
+#include <chrono>
+
 #include "defs.h"
 #include "eudaq/FileDeserializer.hh"
 #include "eudaq/FileReader.hh"
@@ -44,6 +46,10 @@ private:
 
   std::vector<eudaq::EventSP> mTimeStampedEvents;
   std::vector<Hit> mHitBuffer;
+
+  uint64_t mEventCnt = 0, mFrameCnt = 0;
+  std::chrono::high_resolution_clock::duration mTimeForEvent, mTimeForFrame;
+  std::chrono::high_resolution_clock::time_point mStartTime;
 };
 #define MPW3FILEREADER_H
 
