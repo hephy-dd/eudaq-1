@@ -55,19 +55,23 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
       return nullptr; // we should never get here, just to be save
     }
 
+    //    std::ofstream outUnsorted("unsorted.csv");
+    //    outUnsorted << Hit::strHeader();
+    //    for (const auto &hit : mHitBuffer) {
+    //      outUnsorted << hit.toStr();
+    //    }
+
     /*
-     * following code is quite tricky to understand, hopefully this
-     * comment helps *fingers crossed* :)
-     *
      * Time-Bin-Matching upcoming..
      *
-     * 1) we extract hits sorted in double columns from current buffer
-     * 2) we check for overflows in the specific double columns
-     *    this has to be done as we cannot rely on the ovflwCnt from the
-     * SOF for the whole frame 3) calculate global timestamps by
-     * considering detected ovflwCnt, SOF ovflwCnt and TS_LE 4) sort
-     * buffer in terms of global timestamps 5) merge hits with similar
-     * timestamps to events
+     * 1) We extract hits sorted in double columns from current buffer
+     * 2) We check for overflows in the specific double columns.
+     *    This has to be done as we cannot rely on the ovflwCnt from the
+     *    SOF for the whole frame
+     * 3) Calculate global timestamps by considering detected ovflwCnt,
+     *    SOF ovflwCnt and TS_LE
+     * 4) Sort buffer in terms of global timestamps
+     * 5) Merge hits with similar timestamps to events
      */
 
     std::vector<std::vector<Hit>::iterator>
@@ -81,26 +85,40 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
         }
       }
     }
+
+    //    std::ofstream outSorted("sorted.csv");
+    //    outSorted << Hit::strHeader();
     for (int dcol = 0; dcol < DefsMpw3::dimSensorCol / 2; dcol++) {
       const auto &currDCol = hitsSortedByDCol[dcol];
       DefsMpw3::ts_t ovflwCnt = 0;
-      for (auto i = currDCol.begin() + 1; i < currDCol.end();
+      bool first = true;
+
+      for (auto i = currDCol.begin(); i < currDCol.end();
            ++i) // i is an iterator pointing to an iterator, quite some
                 // dereferencing to do...
       {
-        if ((*i)->tsLe < (*(i - 1))->tsLe) {
+        //        outSorted << (*i)->toStr();
+        if (!first &&
+            ((*i)->tsLe <
+             (*(i - 1))->tsLe)) { // we may not check for overflow in the 1st
+                                  // element, as there will be no *(i - 1) !
           ovflwCnt++; // we detected a higher TS_LE followed by a lower
                       // one
                       // => overflow pretty likely
         }
+        first = false;
 
         // this is the ominous time-bin-matching, the whole reason for
         // this class btw...
         (*i)->globalTs = (ovflwCnt + (*i)->ovflwSOF) * DefsMpw3::dTPerOvflw +
                          (*i)->tsLe * DefsMpw3::dTPerTsLsb;
 
-        //        std::cout << "timebin matching sof = " << (*i)->ovflwSOF
-        //                  << " ovflwCnt = " << ovflwCnt
+        //        auto pix = DefsMpw3::dColIdx2Pix((*i)->dcol, (*i)->pix);
+
+        //        std::cout << "timebin matching for " << pix.row << ":" <<
+        //        pix.col
+        //                  << " sof = " << (*i)->ovflwSOF << " ovflwCnt = " <<
+        //                  ovflwCnt
         //                  << " TS_LE = " << int((*i)->tsLe)
         //                  << " => global = " << (*i)->globalTs << "\n"
         //                  << std::flush;
@@ -110,43 +128,71 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
         // Don't know if it is even possible to detect this :/ ..
       }
     }
+
+    //    std::ofstream outTs("sorted+ts.csv");
+    //    outTs << Hit::strHeader();
+
+    //    for (int i = 0; i < DefsMpw3::dimSensorCol / 2; i++) {
+    //      for (const auto &h : hitsSortedByDCol[i]) {
+    //        outTs << (*h).toStr();
+    //      }
+    //    }
     // Now that we assigned the global timestamps we can sort them in
     // ascending order
     std::sort(
         mHitBuffer.begin(), mHitBuffer.end(),
         [](const Hit &h1, const Hit &h2) { return h1.globalTs < h2.globalTs; });
 
-    auto beginTimewindow = mHitBuffer.begin();
     auto endTimewindow = mHitBuffer.begin();
+    int evtNmb = 0;
+    int initBuffSize = mHitBuffer.size();
     do { // event building based on global TS
-      endTimewindow =
-          std::find_if(beginTimewindow, mHitBuffer.end(), [&](const Hit &hit) {
-            return hit.globalTs - beginTimewindow->globalTs >
+      evtNmb++;
+      endTimewindow = std::find_if(
+          mHitBuffer.begin(), mHitBuffer.end(), [&](const Hit &hit) {
+            return hit.globalTs - mHitBuffer.begin()->globalTs >
                    DefsMpw3::dTSameEvt;
           });
 
+      //      if (evtNmb == 1) {
+      //        std::ofstream outTsOrdered("timestamp_ordererd.csv");
+      //        outTsOrdered << Hit::strHeader();
+      //        for (const auto &hit : mHitBuffer) {
+      //          outTsOrdered << hit.toStr();
+      //        }
+      //      }
+
       PrefabEvt prefab;
-      for (auto i = beginTimewindow; i < (endTimewindow - 1);
+      for (auto i = mHitBuffer.begin(); i < (endTimewindow - 1);
            i++) // we went 1 too far, found index no more belongs to
       // current timewindow => -1
       {
         prefab.push_back(*i);
-        mHitBuffer.erase(i); // processed, delete it from buffer
       }
+      mHitBuffer.erase(mHitBuffer.begin(),
+                       endTimewindow); // processed, delete frome buffer
+
       finalizePrefab(prefab);
+      //      std::ofstream outPrefab("prefab.csv",
+      //                              std::fstream::out | std::fstream::app);
+      //      if (evtNmb == 1) {
+      //        outPrefab << Hit::strHeader();
+      //      }
+      //      outPrefab << "\n Event #" << evtNmb << "\n";
+      //      for (const auto &hit : prefab) {
+      //        outPrefab << hit.toStr();
+      //      }
 
-      beginTimewindow = endTimewindow;
-
-      auto currPos = beginTimewindow - mHitBuffer.begin();
-
-      if ((currPos > 3.0 / 4.0 * double(mHitBuffer.size())) &&
+      if (mHitBuffer.size() < 1.0 / 4.0 * double(initBuffSize) &&
           mDes->HasData()) {
-        break; // stop processing buffer at 3/4 length, upcoming hits may
-               // be merged with hits from next frame to an event
+        break; // stop processing buffer at 1/4 initial length, upcoming hits
+               // may be merged with hits from next frame to an event
         // 3/4 is a pretty arbitrary choice
         // TODO: do better, think more
       }
     } while (endTimewindow != mHitBuffer.end());
+
+    return nullptr; // delete me!!!
 
     if (mTimeStampedEvents.size() > 0) {
       auto retval = mTimeStampedEvents.front();
@@ -166,6 +212,10 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
 
 bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
 
+  static uint32_t frameCnt = 0;
+
+  std::cout << "\rprocessing Frame #" << frameCnt++ << std::flush;
+
   if (frame == nullptr) {
     EUDAQ_DEBUG("frame to process == nullptr");
     return false;
@@ -178,8 +228,6 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
   }
 
   auto block = frame->GetBlock(0);
-
-  std::cout << "blocksize = " << block.size() << "\n" << std::flush;
 
   if (block.size() < 2 * sizeof(DefsMpw3::word_t)) {
 
@@ -240,10 +288,18 @@ void Mpw3FileReader::finalizePrefab(const PrefabEvt &prefab) {
   euEvent->SetTimestamp(minTs, maxTs);
   std::vector<uint32_t> data;
   for (auto i = prefab.begin(); i < prefab.end(); ++i) {
-    auto tot = i->tsTe - i->tsLe; // Time Over Threshold
-    uint32_t tmp = (uint32_t(i->dcol) << 16) + (uint32_t(i->pix) << 8) +
-                   uint32_t(tot); // store whole pixel-hit information in first
-                                  // 3 bytes of 32 bit word
+    auto tot = int(i->tsTe) - int(i->tsLe); // Time Over Threshold
+
+    if (tot < 0) {
+      tot += 256;
+      // looks like an overflow, pretty impressive ToT value, the particle was
+      // not joking
+    }
+
+    uint32_t tmp =
+        (uint32_t(i->dcol) << 24) + (uint32_t(i->pix) << 16) +
+        uint32_t(tot); // store whole pixel-hit information in 32 bit word
+
     data.push_back(tmp);
   }
   euEvent->AddBlock(0, data);
