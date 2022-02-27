@@ -7,14 +7,6 @@ public:
   bool Converting(eudaq::EventSPC d1, eudaq::StdEventSP d2,
                   eudaq::ConfigSPC conf) const override;
   static const uint32_t m_id_factory = eudaq::cstr2hash("Mpw3FrameEvent");
-
-private:
-  struct PixelIndex {
-    int col;
-    int row;
-  };
-
-  static PixelIndex dColIdx2Pix(int dcol, int pix);
 };
 
 namespace {
@@ -68,7 +60,7 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
       if (tot < 0) {
         tot += 256;
       }
-      auto hitPixel = dColIdx2Pix(dcol, pix);
+      auto hitPixel = DefsMpw3::dColIdx2Pix(dcol, pix);
       //      std::cout << "word = " << word << " dcol " << dcol << " pix " <<
       //      pix
       //                << " Te " << tsTe << " Le " << tsLe << " hitPixRow "
@@ -83,46 +75,4 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
     d2->AddPlane(plane);
   }
   return true;
-}
-
-Mpw3FrameEvent2StdEventConverter::PixelIndex
-Mpw3FrameEvent2StdEventConverter::dColIdx2Pix(int dcol, int pix) {
-  /*
-   * The pixel in a double column are enumerated in a snake-like pattern
-   * eg dcol 0 for pixel 1 -> 5:
-   * numbers represent the "user pixel name" row/col
-   *
-   * 2/0 -> ..
-   *  ^
-   *  |
-   * 1/0 <- 1/1
-   *         ^
-   *         |
-   * 0/0 -> 0/1
-   *
-   * 0/0 therefore is pixel 0 in dcol 0 and 2/0 is pixel 5 in dcol 0
-   * 2/4 would be pixel 4 in dcol 2
-   */
-  PixelIndex retval;
-
-  retval.row = pix / 2;
-  retval.col = dcol * 2;
-  /*
-   * The snake like pattern forms blocks of 4
-   * modulo division gets us index in the block
-   */
-  switch (pix % 4) {
-  case 0:
-  case 3:
-    // alrdy at correct index, do nothing
-    break;
-  case 1:
-  case 2:
-    // corresponds to 0/1, 1/1 from example above
-    // therefore column needs to be switched
-    retval.col += 1;
-    break;
-  }
-
-  return retval;
 }

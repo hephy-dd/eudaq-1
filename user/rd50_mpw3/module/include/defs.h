@@ -7,6 +7,11 @@
 
 namespace DefsMpw3 {
 
+  struct PixelIndex {
+    int col;
+    int row;
+  };
+
   using word_t = SVD::Defs::VMEData_t;
   using ts_t = uint64_t;
 
@@ -55,6 +60,47 @@ namespace DefsMpw3 {
   bool inline isEOF(word_t word) {
     return (word & (0xE0 << 24)) > 0;
   } // is given word End Of Frame?
+
+  static inline PixelIndex dColIdx2Pix(int dcol, int pix) {
+    /*
+     * The pixel in a double column are enumerated in a snake-like pattern
+     * eg dcol 0 for pixel 1 -> 5:
+     * numbers represent the "user pixel name" row/col
+     *
+     * 2/0 -> ..
+     *  ^
+     *  |
+     * 1/0 <- 1/1
+     *         ^
+     *         |
+     * 0/0 -> 0/1
+     *
+     * 0/0 therefore is pixel 0 in dcol 0 and 2/0 is pixel 5 in dcol 0
+     * 2/4 would be pixel 4 in dcol 2
+     */
+    PixelIndex retval;
+
+    retval.row = pix / 2;
+    retval.col = dcol * 2;
+    /*
+     * The snake like pattern forms blocks of 4
+     * modulo division gets us index in the block
+     */
+    switch (pix % 4) {
+    case 0:
+    case 3:
+      // alrdy at correct index, do nothing
+      break;
+    case 1:
+    case 2:
+      // corresponds to 0/1, 1/1 from example above
+      // therefore column needs to be switched
+      retval.col += 1;
+      break;
+    }
+
+    return std::move(retval);
+  }
 
 } // namespace DefsMpw3
 
