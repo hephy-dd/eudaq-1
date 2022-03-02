@@ -37,20 +37,20 @@ namespace DefsMpw3 {
    * bit 23 might be 1 or 0 to destinguish between base and piggy board
    */
 
-  uint32_t inline extractDcol(word_t word) { // EOC_ADDR
+  word_t inline extractDcol(word_t word) { // EOC_ADDR
     return (word & (0x1F << 24)) >> 24;
   };
-  uint32_t inline extractPix(word_t word) { // PIX_ADDR
+  word_t inline extractPix(word_t word) { // PIX_ADDR
     return (word & (0x7F << 16)) >> 16;
   };
-  uint32_t inline extractTsTe(word_t word) { // TS_TE
+  word_t inline extractTsTe(word_t word) { // TS_TE
     return (word & (0xFF << 8)) >> 8;
   };
-  uint32_t inline extractTsLe(word_t word) { return word & 0xFF; }; // TS_LE
-  uint32_t inline extractPiggy(word_t word) {
+  word_t inline extractTsLe(word_t word) { return word & 0xFF; }; // TS_LE
+  word_t inline extractPiggy(word_t word) {
     return (word & (1 << 23)) >> 23;
   }; // piggy or base
-  uint32_t inline extractOverFlowCnt(word_t word) {
+  word_t inline extractOverFlowCnt(word_t word) {
     return word & ~(0x1FF << 23);
   }
 

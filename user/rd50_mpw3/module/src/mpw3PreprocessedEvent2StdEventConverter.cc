@@ -34,7 +34,24 @@ bool Mpw3PreprocessedEvent2StdEventConverter::Converting(
     rawdata.resize(block.size() / sizeWord);
     memcpy(rawdata.data(), block.data(), rawdata.size() * sizeWord);
 
-    eudaq::StandardPlane plane(0, "Frame", "RD50_MPW3");
+    std::string description;
+    if (d1->GetTag("isPiggy") == "true") {
+      description = "RD50_MPW3_piggy";
+    } else {
+      description = "RD50_MPW3_base";
+    }
+    /*
+     * the description is needed in corryvreckan to identify the detector
+     * In Corry-Geometry file: "type = RD50_MPW3_base"
+     * In Corry-Config:
+     * [EventLoaderEUDAQ2]
+     * "name = RD50_MPW3_base_0" or whatever name you assigned to the detector
+     * in the geometry "type = "RD50_MPW3_base" or piggy, if it's the piggy
+     * detector
+     */
+
+    d2->SetDescription(description);
+    eudaq::StandardPlane plane(0, "Frame", description);
     plane.SetSizeZS(DefsMpw3::dimSensorCol, DefsMpw3::dimSensorRow, 0);
 
     for (const auto &word : rawdata) {

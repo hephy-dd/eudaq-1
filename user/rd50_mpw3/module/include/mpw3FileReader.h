@@ -20,6 +20,7 @@ private:
     uint8_t tsLe;
     uint8_t tsTe;
     DefsMpw3::ts_t globalTs;
+    bool isPiggy;
 
     std::string inline toStr() const {
       std::stringstream ss;
@@ -34,18 +35,21 @@ private:
       return "#ROW:COL;TS_LE; TS_TE; TS-glob; OvflwSOF \n";
     }
   };
-  using PrefabEvt = std::vector<Hit>;
+  using HitBuffer = std::vector<Hit>;
+  using EventBuffer = std::vector<eudaq::EventSP>;
 
   static constexpr int sizeEvtQueue = 3;
 
   bool processFrame(const eudaq::EventUP &frame);
-  void finalizePrefab(const PrefabEvt &prefab);
+  void buildEvent(HitBuffer &in, EventBuffer &out);
+  void finalizePrefab(const HitBuffer &prefab, EventBuffer &out);
+  bool eventRdy(eudaq::EventSP &event);
 
   std::unique_ptr<eudaq::FileDeserializer> mDes;
   std::string mFilename;
 
-  std::vector<eudaq::EventSP> mTimeStampedEvents;
-  std::vector<Hit> mHitBuffer;
+  EventBuffer mEventBuffBase, mEventBuffPiggy;
+  std::vector<Hit> mHBBase, mHBPiggy;
 
   uint64_t mEventCnt = 0, mFrameCnt = 0;
   std::chrono::high_resolution_clock::duration mTimeForEvent, mTimeForFrame;
