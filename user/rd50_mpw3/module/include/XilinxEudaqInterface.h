@@ -4,6 +4,7 @@
 #include "../tools/RingBuffer_t.h"
 #include "../tools/UDPAcceptor.h"
 #include "Event_t.h"
+#include "eudaq/Logger.hh"
 
 #include <algorithm>
 #include <memory>
@@ -50,7 +51,7 @@ namespace SVD {
 
       public:
         Receiver() = default;
-        Receiver(const BackEndID_t &rID);
+        Receiver(const BackEndID_t &rID, eudaq::LogSender *logger);
         ~Receiver();
         Receiver(Receiver &&rOther) noexcept
             : m_IsRunning(std::move(rOther.m_IsRunning)),
@@ -81,6 +82,7 @@ namespace SVD {
         std::unique_ptr<std::thread> m_pThread{};
 
         Tools::UDPAcceptor m_Acceptor{};
+        eudaq::LogSender *m_euLogger;
 
         uint8_t m_VMEBase = 0;
       };
@@ -88,7 +90,7 @@ namespace SVD {
       class Unpacker {
       public:
         Unpacker() = default;
-        Unpacker(PayloadBuffer_t &rBuffer) noexcept;
+        Unpacker(PayloadBuffer_t &rBuffer, eudaq::LogSender *logger) noexcept;
         Unpacker(Unpacker &&rOther) noexcept;
         ~Unpacker();
 
@@ -157,6 +159,8 @@ namespace SVD {
         std::unique_ptr<std::atomic<bool>> m_IsRunning{};
         std::unique_ptr<FADCPayloadBuffer_t> m_FADCBuffer{};
         std::unique_ptr<std::thread> m_pThread{};
+
+        eudaq::LogSender *m_euLogger;
       };
 
     } // namespace UPDDetails
@@ -165,7 +169,8 @@ namespace SVD {
     public:
       FADCGbEMerger(const std::vector<BackEndID_t> &rIDs,
                     std::shared_ptr<SVD::XLNX_CTRL::UPDDetails::PayloadBuffer_t>
-                        testBuffer);
+                        testBuffer,
+                    eudaq::LogSender *logger);
       FADCGbEMerger(const FADCGbEMerger &rOther) = delete;
       FADCGbEMerger(FADCGbEMerger &&rOther) noexcept;
       ~FADCGbEMerger();
@@ -201,6 +206,7 @@ namespace SVD {
       std::vector<UPDDetails::Unpacker> m_Unpackers{};
       std::atomic<bool> m_EventMissMatch{false};
       Event_t m_Event;
+      eudaq::LogSender *m_euLogger;
     };
 
   } // namespace XLNX_CTRL

@@ -16,6 +16,7 @@ public:
   void DoConnect(eudaq::ConnectionSPC id) override;
   void DoDisconnect(eudaq::ConnectionSPC id) override;
   void DoConfigure() override;
+  void DoInitialise() override;
   void DoReset() override;
   void DoStartRun() override;
   void DoStopRun() override;
@@ -39,5 +40,6 @@ private:
   eudaq::FileWriterSP mWriter;
   std::shared_ptr<SVD::XLNX_CTRL::UPDDetails::PayloadBuffer_t> mTestBuffer{};
   std::chrono::high_resolution_clock::time_point mStartTime;
+  std::vector<uint32_t> mTestFrame;
 };
 #endif // MPW3_DATACOLLECTOR_H

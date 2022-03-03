@@ -40,6 +40,36 @@ void Mpw3FastDataCollector::DoConfigure() {
   }
 }
 
+void Mpw3FastDataCollector::DoInitialise() {
+
+  std::cout << "initialising\n";
+  std::ifstream in("/mnt/data/mpw3/test_data/data.dat");
+  if (!in.is_open()) {
+    std::cout << "failed to open file\n";
+    return;
+  }
+  std::string line = "";
+  size_t row = 0, col = 0;
+  while (std::getline(in, line)) {
+    if (line.length() == 0 || '#' == line[0]) {
+      // empty or comment line
+      continue;
+    }
+
+    std::istringstream is(line);
+    uint32_t dcol, pix, tsTe, tsLe, piggy, word = 0;
+    is >> dcol;
+    is >> pix;
+    is >> tsLe;
+    is >> tsTe;
+    is >> piggy;
+    word = (dcol << 24) | (piggy << 23) | (pix << 16) | (tsTe << 8) | tsLe;
+    //    std::cout << "word = " << word;
+    mTestFrame.push_back(word);
+  }
+  std::cout << "testdata size = " << mTestFrame.size() << "\n";
+}
+
 void Mpw3FastDataCollector::DoReset() {
   std::unique_lock<std::mutex> lk(mMtxMap);
   mConnEvque.clear();
@@ -48,8 +78,8 @@ void Mpw3FastDataCollector::DoReset() {
 
 void Mpw3FastDataCollector::DoStartRun() {
 
-  mEventMerger =
-      std::make_unique<SVD::XLNX_CTRL::FADCGbEMerger>(mBackEndIDs, mTestBuffer);
+  mEventMerger = std::make_unique<SVD::XLNX_CTRL::FADCGbEMerger>(
+      mBackEndIDs, mTestBuffer, &eudaq::GetLogger());
 
   mEventBuilderRunning = std::make_unique<std::atomic<bool>>(true);
   mEventBuilderThread = std::make_unique<std::thread>(
@@ -135,11 +165,12 @@ void Mpw3FastDataCollector::dummyDataGenerator() {
       lastTime = std::chrono::high_resolution_clock::now();
     }
     data.push_back(head);
-    uint32_t dummy;
-    for (int i = 0; i < nData; i++) {
-      dummy = std::rand();
-      data.push_back(dummy);
-    }
+    //    uint32_t dummy;
+    //    for (int i = 0; i < nData; i++) {
+    //      dummy = std::rand();
+    //      data.push_back(dummy);
+    //    }
+    data.insert(data.end(), mTestFrame.begin(), mTestFrame.end());
 
     data.push_back(tail);
     data.push_back(packageNmb << 8);
