@@ -24,8 +24,8 @@ namespace DefsMpw3 {
       dTPerTsLsb *
       256; // number of [ns] per timestamp-overflow (integer from FPGA)
   static constexpr ts_t dTSameEvt =
-      6400; // the timewindow in [ns] in which multiple hits are considered to
-            // belong to the same event
+      0; // the timewindow in [ns] in which multiple hits are considered to
+         // belong to the same event
 
   /* the following methods are used for extraction of different data in a 32bit
    * EOC-word

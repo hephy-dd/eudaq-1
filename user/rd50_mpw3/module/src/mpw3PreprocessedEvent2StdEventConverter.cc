@@ -41,12 +41,12 @@ bool Mpw3PreprocessedEvent2StdEventConverter::Converting(
       description = "RD50_MPW3_base";
     }
     /*
-     * the description is needed in corryvreckan to identify the detector
-     * In Corry-Geometry file: "type = RD50_MPW3_base"
+     * the description is needed in Corryvreckan to identify the detector
+     * In Corry-Geometry file: "type = RD50_MPW3_base" / _piggy
      * In Corry-Config:
      * [EventLoaderEUDAQ2]
      * "name = RD50_MPW3_base_0" or whatever name you assigned to the detector
-     * in the geometry "type = "RD50_MPW3_base" or piggy, if it's the piggy
+     * in the geometry "type = "RD50_MPW3_base" / _piggy
      * detector
      */
 

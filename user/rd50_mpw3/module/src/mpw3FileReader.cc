@@ -246,10 +246,12 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
   int initBuffSize = in.size();
   do { // event building based on global TS
     endTimewindow = std::find_if(in.begin(), in.end(), [&](const Hit &hit) {
-      return hit.globalTs - in.begin()->globalTs > DefsMpw3::dTSameEvt;
+      return hit.globalTs - in.begin()->globalTs >= DefsMpw3::dTSameEvt;
     });
-    endTimewindow--; // we went 1 too far, found index no more belongs to
-    // current timewindow => --
+    if (endTimewindow != in.end()) { // needed if only 1 hit is left
+      endTimewindow--; // we went 1 too far, found index no more belongs to
+      // current timewindow => --
+    }
 
     //      if (evtNmb == 1) {
     //        std::ofstream outTsOrdered("timestamp_ordererd.csv");
