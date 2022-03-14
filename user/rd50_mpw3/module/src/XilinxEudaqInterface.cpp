@@ -40,14 +40,15 @@ namespace SVD {
             if (static_cast<ssize_t>(data.size()) > size) {
               data.erase(data.begin() + size, data.end());
             } else {
-              auto ss = std::stringstream();
-              ss << "Invalid data size received: '" << size
-                 << "' 32 bit words from FADC #" << m_VMEBase << '!';
-              EUDAQ_WARN(ss.str());
-              //              Logger::Log(Logger::Type_t::Warning, m_gName,
-              //              ss.str());
-              m_euLogger->SendLogMessage(
-                  eudaq::LogMessage(ss.str(), eudaq::LogMessage::LVL_WARN));
+              if (size != data.size()) {
+                auto ss = std::stringstream();
+                ss << "Invalid data size received: '" << size
+                   << "' 32 bit words from Xilinx #" << int(m_VMEBase);
+                //              Logger::Log(Logger::Type_t::Warning, m_gName,
+                //              ss.str());
+                m_euLogger->SendLogMessage(
+                    eudaq::LogMessage(ss.str(), eudaq::LogMessage::LVL_WARN));
+              }
             }
             if (data.empty())
               continue;
@@ -68,7 +69,8 @@ namespace SVD {
             //            Logger::Log(Logger::Type_t::Warning, m_gName,
             //            rError.what());
             m_euLogger->SendLogMessage(
-                eudaq::LogMessage(rError.what(), eudaq::LogMessage::LVL_WARN));
+                eudaq::LogMessage(std::string(m_gName) + ": " + rError.what(),
+                                  eudaq::LogMessage::LVL_WARN));
           }
         }
 
@@ -119,7 +121,8 @@ namespace SVD {
               fadc.clear();
               auto ss = std::stringstream();
               ss << "Expected package number " << (lastPayload & 0xffffff)
-                 << ", got: " << curPayload << '!';
+                 << ", got: " << curPayload << '!'
+                 << " word = " << frame.back();
               //              Logger::Log(Logger::Type_t::Warning, m_gName,
               //              ss.str());
               m_euLogger->SendLogMessage(
@@ -129,7 +132,8 @@ namespace SVD {
           } else {
             continue;
           }
-
+          //          std::cout << " next frame size = " << frame.size() <<
+          //          "\n";
           auto itBegin = fadc.empty()
                              ? std::find_if(std::begin(frame), std::end(frame),
                                             &Unpacker::IsMainHeader)
@@ -138,6 +142,15 @@ namespace SVD {
           if (itBegin != std::end(frame)) {
             auto itEnd = std::find_if(itBegin, std::end(frame) - 1,
                                       &Unpacker::IsTrailer);
+
+            //            std::cout << "frame size = " << std::dec << itEnd -
+            //            itBegin
+            //            << "\n"; for (auto i = itBegin; i <= itEnd; i++) {
+            //              std::cout << std::hex << "0x" << *i << " ";
+            //            }
+            //            std::cout << "\nbegin = " << *itBegin << " end = " <<
+            //            *itEnd
+            //                      << "\n";
             const auto offset = fadc.size();
             const auto isTrailer = Unpacker::IsTrailer(*itEnd);
             fadc.resize(offset + std::distance(itBegin, itEnd + isTrailer));
@@ -155,6 +168,7 @@ namespace SVD {
                  itBegin != std::end(frame) - 1;
                  itBegin = std::find_if(itEnd, std::end(frame) - 1,
                                         &Unpacker::IsMainHeader)) {
+
               itEnd = std::find_if(itBegin, std::end(frame) - 1,
                                    &Unpacker::IsTrailer);
               // const auto notSplit = itEnd != std::end(frame);
@@ -176,27 +190,27 @@ namespace SVD {
 
     FADCGbEMerger::FADCGbEMerger(
         const std::vector<BackEndID_t> &rIDs,
-        std::shared_ptr<UPDDetails::PayloadBuffer_t> testBuffer,
-        eudaq::LogSender *logger)
-        : m_euLogger(logger) {
+        // std::shared_ptr<UPDDetails::PayloadBuffer_t> testBuffer,
+        eudaq::LogSender &logger)
+        : m_euLogger(&logger) {
       m_Event.m_Data.resize(rIDs.size());
       m_Event.m_Words = 0;
       m_Receivers.reserve(rIDs.size());
       m_Unpackers.reserve(rIDs.size());
 
       for (const auto &rID : rIDs) {
-        //      m_Receivers.emplace_back(rID);
+        m_Receivers.emplace_back(rID, m_euLogger);
       }
-      m_Unpackers.emplace_back(*testBuffer, logger);
-      //    for (auto &rReceiver : m_Receivers) {
-      //                  m_Unpackers.emplace_back(rReceiver.GetBuffer());
-
-      //    }
+      //      m_Unpackers.emplace_back(*testBuffer, logger);
+      for (auto &rReceiver : m_Receivers) {
+        m_Unpackers.emplace_back(rReceiver.GetBuffer(), m_euLogger);
+      }
     }
 
     FADCGbEMerger::FADCGbEMerger(FADCGbEMerger &&rOther) noexcept
         : m_Receivers(std::move(rOther.m_Receivers)),
-          m_Unpackers(std::move(rOther.m_Unpackers)) {}
+          m_Unpackers(std::move(rOther.m_Unpackers)),
+          m_euLogger(rOther.m_euLogger) {}
 
     FADCGbEMerger::~FADCGbEMerger() { this->Exit(); }
 

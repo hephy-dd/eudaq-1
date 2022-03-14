@@ -151,11 +151,12 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
   if (in.size() == 0) {
     return;
   }
-  //    std::ofstream outUnsorted("unsorted.csv");
-  //    outUnsorted << Hit::strHeader();
-  //    for (const auto &hit : in) {
-  //      outUnsorted << hit.toStr();
-  //    }
+  //  std::ofstream outUnsorted("unsorted.csv");
+  //  outUnsorted << Hit::dbgFileHeader();
+  //  for (const auto &hit : in) {
+  //    outUnsorted << hit.toStr();
+  //  }
+  //  outUnsorted.flush();
 
   /*
    * Event-Building + Time-Bin-Matching upcoming..
@@ -184,8 +185,8 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
     }
   }
 
-  //    std::ofstream outSorted("sorted.csv");
-  //    outSorted << Hit::strHeader();
+  //  std::ofstream outSorted("sorted.csv");
+  //  outSorted << Hit::dbgFileHeader();
 
   for (int dcol = 0; dcol < DefsMpw3::dimSensorCol / 2; dcol++) {
     const auto &currDCol = hitsSortedByDCol[dcol];
@@ -193,10 +194,10 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
     bool first = true;
 
     for (auto i = currDCol.begin(); i < currDCol.end();
-         ++i) // i is an iterator pointing to an iterator, quite some
+         i++) // i is an iterator pointing to an iterator, quite some
     // dereferencing to do...
     {
-      //        outSorted << (*i)->toStr();
+      //      outSorted << (*i)->toStr();
       if (!first &&
           ((*i)->tsLe <
            (*(i - 1))->tsLe)) { // we may not check for overflow in the 1st
@@ -212,72 +213,83 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
       (*i)->globalTs = (ovflwCnt + (*i)->ovflwSOF) * DefsMpw3::dTPerOvflw +
                        (*i)->tsLe * DefsMpw3::dTPerTsLsb;
 
-      //        auto pix = DefsMpw3::dColIdx2Pix((*i)->dcol, (*i)->pix);
+      //      auto pix = DefsMpw3::dColIdx2Pix((*i)->dcol, (*i)->pix);
 
-      //        std::cout << "timebin matching for " << pix.row << ":" <<
-      //        pix.col
-      //                  << " sof = " << (*i)->ovflwSOF << " ovflwCnt = " <<
-      //                  ovflwCnt
-      //                  << " TS_LE = " << int((*i)->tsLe)
-      //                  << " => global = " << (*i)->globalTs << "\n"
-      //                  << std::flush;
+      //      std::cout << "timebin matching for " << pix.row << ":" << pix.col
+      //                << " sof = " << (*i)->ovflwSOF << " ovflwCnt = " <<
+      //                ovflwCnt
+      //                << " TS_LE = " << int((*i)->tsLe)
+      //                << " => global = " << (*i)->globalTs << "\n"
+      //                << std::flush;
 
       // FIXME: if a whole timebin is without any hits in a certain dcol
       // and TS-C's seem to be growing continuously we'll get it wrong..
       // Don't know if it is even possible to detect this :/ ..
     }
+    //    outSorted.flush();
   }
 
-  //    std::ofstream outTs("sorted+ts.csv");
-  //    outTs << Hit::strHeader();
+  //  std::ofstream outTs("sorted+ts.csv");
+  //  outTs << Hit::dbgFileHeader();
 
-  //    for (int i = 0; i < DefsMpw3::dimSensorCol / 2; i++) {
-  //      for (const auto &h : hitsSortedByDCol[i]) {
-  //        outTs << (*h).toStr();
-  //      }
+  //  for (int i = 0; i < DefsMpw3::dimSensorCol / 2; i++) {
+  //    for (const auto &h : hitsSortedByDCol[i]) {
+  //      outTs << (*h).toStr();
   //    }
+  //    outTs.flush();
+  //  }
   // Now that we assigned the global timestamps we can sort them in
   // ascending order
   std::sort(in.begin(), in.end(), [](const Hit &h1, const Hit &h2) {
     return h1.globalTs < h2.globalTs;
   });
 
+  int evtNmb = 0;
+
+  //  if (evtNmb == 0) {
+  //    std::ofstream outTsOrdered("timestamp_ordererd.csv");
+  //    outTsOrdered << Hit::dbgFileHeader();
+  //    for (const auto &hit : in) {
+  //      outTsOrdered << hit.toStr();
+  //    }
+  //    outTsOrdered.flush();
+  //  }
+
   auto endTimewindow = in.begin();
   int initBuffSize = in.size();
-  do { // event building based on global TS
-    endTimewindow = std::find_if(in.begin(), in.end(), [&](const Hit &hit) {
-      return hit.globalTs - in.begin()->globalTs >= DefsMpw3::dTSameEvt;
-    });
-    if (endTimewindow != in.end()) { // needed if only 1 hit is left
-      endTimewindow--; // we went 1 too far, found index no more belongs to
-      // current timewindow => --
-    }
-
-    //      if (evtNmb == 1) {
-    //        std::ofstream outTsOrdered("timestamp_ordererd.csv");
-    //        outTsOrdered << Hit::strHeader();
-    //        for (const auto &hit : in) {
-    //          outTsOrdered << hit.toStr();
-    //        }
-    //      }
-
+  while (in.size() > 0) { // event building based on global TS
     HitBuffer prefab;
-    for (auto i = in.begin(); i < endTimewindow; i++) {
-      prefab.push_back(*i);
+    evtNmb++;
+    for (auto i = in.begin(); i < in.end(); i++) {
+
+      if (i->globalTs - in.begin()->globalTs <=
+          DefsMpw3::dTSameEvt) { // do 2 hits belong to the same event?
+        prefab.push_back(*i);
+        endTimewindow = i;
+      } else {
+        break; // we found all hits belonging to the current event
+      }
     }
-    in.erase(in.begin(),
-             endTimewindow); // processed, delete from buffer
+    //    std ::cout << "hits for event #" << evtNmb << ":\n";
+    //    for (auto i = prefab.begin(); i < prefab.end(); i++) {
+    //      std::cout << i->toStr() << "\n";
+    //    }
+    in.erase(
+        in.begin(),
+        endTimewindow +
+            1); // processed, delete from buffer; +1 needed as we also want
+                // to remove the last element, begin is inclusive, end is not
 
     finalizePrefab(prefab, out);
-    //      std::ofstream outPrefab("prefab.csv",
-    //                              std::fstream::out | std::fstream::app);
-    //      if (evtNmb == 1) {
-    //        outPrefab << Hit::strHeader();
-    //      }
-    //      outPrefab << "\n Event #" << evtNmb << "\n";
-    //      for (const auto &hit : prefab) {
-    //        outPrefab << hit.toStr();
-    //      }
+    //    std::ofstream outPrefab("prefab.csv",
+    //                            std::fstream::out | std::fstream::app);
+    //    if (evtNmb == 1) {
+    //      outPrefab << Hit::dbgFileHeader();
+    //    }
+    //    outPrefab << "\n Event #" << evtNmb << "\n";
+    //    for (const auto &hit : prefab) {
+    //      outPrefab << hit.toStr();
+    //    }
 
     if (in.size() < 1.0 / 4.0 * double(initBuffSize) && mDes->HasData()) {
       break; // stop processing buffer at 1/4 initial length, upcoming hits
@@ -285,7 +297,7 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
       // 1/4 is a pretty random choice
       // TODO: do better, think more
     }
-  } while (endTimewindow != in.end());
+  }
 }
 
 void Mpw3FileReader::finalizePrefab(const HitBuffer &prefab, EventBuffer &out) {

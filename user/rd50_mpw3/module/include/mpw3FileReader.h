@@ -25,14 +25,15 @@ private:
     std::string inline toStr() const {
       std::stringstream ss;
       auto idx = DefsMpw3::dColIdx2Pix(dcol, pix);
-      ss << std::setfill('0') << " " << std::setw(2) << idx.row << ":"
-         << std::setw(2) << idx.col << ";   " << std::setw(3) << int(tsLe)
-         << ";   " << std::setw(3) << int(tsTe) << ";   " << std::setw(6)
-         << globalTs << ";   " << std::setw(5) << ovflwSOF << "\n";
+      ss << std::setfill('0') << " " << std::setw(2) << int(dcol) << ";  "
+         << int(pix) << ";  " << idx.row << ":" << std::setw(2) << idx.col
+         << ";   " << std::setw(3) << int(tsLe) << ";   " << std::setw(3)
+         << int(tsTe) << ";   " << std::setw(6) << globalTs << ";   "
+         << std::setw(5) << ovflwSOF << "\n";
       return std::move(ss.str());
     }
-    static std::string inline strHeader() {
-      return "#ROW:COL;TS_LE; TS_TE; TS-glob; OvflwSOF \n";
+    const static std::string inline dbgFileHeader() {
+      return "#DCol Pix ROW:COL;TS_LE; TS_TE; TS-glob; OvflwSOF\n";
     }
   };
   using HitBuffer = std::vector<Hit>;

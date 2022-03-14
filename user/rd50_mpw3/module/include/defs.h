@@ -55,10 +55,10 @@ namespace DefsMpw3 {
   }
 
   bool inline isSOF(word_t word) {
-    return (word & (0xAF << 24)) > 0;
+    return ((word >> 24) & 0xAF) == 0xAF;
   } // is given word Start Of Frame?
   bool inline isEOF(word_t word) {
-    return (word & (0xE0 << 24)) > 0;
+    return ((word >> 24) & 0xE0) == 0xE0;
   } // is given word End Of Frame?
 
   static inline PixelIndex dColIdx2Pix(int dcol, int pix) {
@@ -75,7 +75,7 @@ namespace DefsMpw3 {
      *         |
      * 0/0 -> 0/1
      *
-     * 0/0 therefore is pixel 0 in dcol 0 and 2/0 is pixel 5 in dcol 0
+     * 0/0 therefore is pixel 0 in dcol 0 and 2/0 is pixel 4 in dcol 0
      * 2/4 would be pixel 4 in dcol 2
      */
     PixelIndex retval;

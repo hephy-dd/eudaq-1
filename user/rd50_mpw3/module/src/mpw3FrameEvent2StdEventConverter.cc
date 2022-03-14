@@ -37,8 +37,11 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
      * there is a head and a tail, 1 word each
      * we do not copy them
      */
-    rawdata.resize(block.size() / sizeWord - 2); // without head and tail
-    memcpy(rawdata.data(), block.data() + sizeWord,
+    rawdata.resize(block.size() / sizeWord - 4); // without head and tail
+    memcpy(rawdata.data(),
+           block.data() +
+               sizeWord * 2, // TODO: *2 is double SOF (normal + piggy), find
+                             // out how to handle it properly
            rawdata.size() * sizeWord); // starting 1 word after head
 
     eudaq::StandardPlane plane(0, "Frame", "RD50_MPW3");
@@ -61,13 +64,11 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
         tot += 256;
       }
       auto hitPixel = DefsMpw3::dColIdx2Pix(dcol, pix);
-      //      std::cout << "word = " << word << " dcol " << dcol << " pix " <<
-      //      pix
-      //                << " Te " << tsTe << " Le " << tsLe << " hitPixRow "
-      //                << hitPixel.row << " col " << hitPixel.col << " tot " <<
-      //                tot
-      //                << "\n"
-      //                << std::flush;
+      std::cout << "word = " << word << " dcol " << dcol << " pix " << pix
+                << " Te " << tsTe << " Le " << tsLe << " hitPixRow "
+                << hitPixel.row << " col " << hitPixel.col << " tot " << tot
+                << "\n"
+                << std::flush;
 
       plane.PushPixel(hitPixel.col, hitPixel.row,
                       tot); // store ToT as "raw pixel value"

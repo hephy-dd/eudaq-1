@@ -36,9 +36,9 @@ namespace SVD {
       class Receiver {
       private:
         static constexpr auto m_gRetries = 100;
-        static constexpr auto m_gMaxPackageSize = 8192;
+        static constexpr auto m_gMaxPackageSize = 8198;
         static constexpr auto m_gName = "UDPReceiver";
-        static constexpr auto m_gTimeout = 250000;
+        static constexpr auto m_gTimeout = 2500000;
 
         //  static constexpr auto m_gIP =
         //      std::array<uint8_t, 3>({uint8_t(192), uint8_t(168),
@@ -167,10 +167,11 @@ namespace SVD {
 
     class FADCGbEMerger {
     public:
-      FADCGbEMerger(const std::vector<BackEndID_t> &rIDs,
-                    std::shared_ptr<SVD::XLNX_CTRL::UPDDetails::PayloadBuffer_t>
-                        testBuffer,
-                    eudaq::LogSender *logger);
+      FADCGbEMerger(
+          const std::vector<BackEndID_t> &rIDs,
+          //                    std::shared_ptr<SVD::XLNX_CTRL::UPDDetails::PayloadBuffer_t>
+          //                        testBuffer,
+          eudaq::LogSender &logger);
       FADCGbEMerger(const FADCGbEMerger &rOther) = delete;
       FADCGbEMerger(FADCGbEMerger &&rOther) noexcept;
       ~FADCGbEMerger();

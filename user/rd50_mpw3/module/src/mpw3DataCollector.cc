@@ -34,8 +34,8 @@ void Mpw3FastDataCollector::DoConfigure() {
     conf->Print();
 
     SVD::XLNX_CTRL::BackEndID_t xlnxBoardId;
-    xlnxBoardId.m_Address = conf->Get("VME_ADDR", 0);
-    xlnxBoardId.m_Crate = conf->Get("CRATE_NO", 0);
+    xlnxBoardId.m_Address = conf->Get("VME_ADDR", 1);
+    xlnxBoardId.m_Crate = conf->Get("CRATE_NO", 1);
     mBackEndIDs.push_back(xlnxBoardId);
   }
 }
@@ -79,14 +79,14 @@ void Mpw3FastDataCollector::DoReset() {
 void Mpw3FastDataCollector::DoStartRun() {
 
   mEventMerger = std::make_unique<SVD::XLNX_CTRL::FADCGbEMerger>(
-      mBackEndIDs, mTestBuffer, &eudaq::GetLogger());
+      mBackEndIDs, eudaq::GetLogger());
 
   mEventBuilderRunning = std::make_unique<std::atomic<bool>>(true);
   mEventBuilderThread = std::make_unique<std::thread>(
       &Mpw3FastDataCollector::WriteEudaqEventLoop, this);
-  mTestThread = std::make_unique<std::thread>(
-      &Mpw3FastDataCollector::dummyDataGenerator, this);
-  mTestRunning = std::make_unique<std::atomic<bool>>(true);
+  //  mTestThread = std::make_unique<std::thread>(
+  //      &Mpw3FastDataCollector::dummyDataGenerator, this);
+  //  mTestRunning = std::make_unique<std::atomic<bool>>(true);
 
   mStartTime = std::chrono::high_resolution_clock::now();
 }

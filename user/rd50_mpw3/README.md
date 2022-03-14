@@ -18,7 +18,17 @@ Is no typical DataCollector as we do not receive Events from a EUDAQ-Producer bu
 with a data rate of up to ~800MBit/s. These packges are sent directly by the FPGA (jumbo frames with 8000 byte payload).
 Generates "MPW3FrameEvent"-events from whole Chip frames (SOF, n * 32bit data words, EOF).
 
+
+
 Usage: start "euCliCollector" with the parameters "-n MPW3DataCollector -t mpw3_dc -r <RunControlIP>"
+The local linux machine needs a bit of configuration too. You should execute a shell script something like the following before using the DataCollector:
+"
+TX_QUEUE_SIZE=10000
+SOCKET_READ_BUFFER=8388608
+sudo ip link set <iface> txqueuelen ${TX_QUEUE_SIZE}
+sudo sysctl -w net.core.rmem_max=${SOCKET_READ_BUFFER}
+sudo ip link set <iface> mtu 8196
+"
 
 ##2) mpw3FileWriter
 
