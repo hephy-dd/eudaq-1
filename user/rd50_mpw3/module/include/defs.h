@@ -19,7 +19,7 @@ namespace DefsMpw3 {
   static constexpr std::size_t dimSensorRow = 64;
 
   static constexpr ts_t dTPerTsLsb =
-      25; // number of [ns] per LSB in TS_LE and TS_TE
+      1; // number of [ns] per LSB in TS_LE and TS_TE
   static constexpr ts_t dTPerOvflw =
       dTPerTsLsb *
       256; // number of [ns] per timestamp-overflow (integer from FPGA)

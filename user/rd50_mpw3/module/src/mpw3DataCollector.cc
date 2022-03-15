@@ -121,7 +121,7 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
       // simply put data in event, StandardEventConverter got time to extract
       // triggerNr, pixelHit,...
 
-      if (nEuEvent++ % 100000 == 0) {
+      if (nEuEvent++ % 1000 == 0) {
         auto duration = std::chrono::high_resolution_clock::now() - lastTime;
         std::cout << "writing euEvent " << nEuEvent << " perf = "
                   << double(32 * frame.m_Data.front().size()) * 1e5 /

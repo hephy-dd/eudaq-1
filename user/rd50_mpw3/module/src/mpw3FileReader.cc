@@ -90,7 +90,7 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
 
   if (frame->IsBORE() || frame->IsEORE() || frame->NumBlocks() == 0) {
 
-    EUDAQ_DEBUG("frame to process is BORE /EORE / NumBlocks == 0");
+    EUDAQ_DEBUG("frame to process is BORE / EORE / NumBlocks == 0");
     return false;
   }
 
@@ -117,12 +117,21 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
     ovFlwEOF = DefsMpw3::extractOverFlowCnt(rawData.back());
 
   } else {
-    EUDAQ_WARN("invalid frame (SOF / EOF)");
+    EUDAQ_WARN("invalid frame (not starting with SOF / not ending with EOF)");
     return false;
   }
+  auto lastSOF =
+      std::find_if(rawData.rbegin(), rawData.rend(),
+                   &DefsMpw3::isSOF); // using reverse iterators as we have to
+                                      // search from end to begin
+  auto firstEOF =
+      std::find_if(rawData.begin(), rawData.end(), &DefsMpw3::isEOF);
 
-  for (int i = 1; i < rawData.size() - 1; i++) {
-    const auto word = rawData[i];
+  // there might be more than 1 SOF / EOF word (base and piggy come with their
+  // own) at this stage we only want to process the payload (hit) data in
+  // between both
+  for (auto i = lastSOF.base(); i < firstEOF; i++) {
+    const auto word = *i;
     Hit hit;
     hit.dcol = DefsMpw3::extractDcol(word);
     hit.pix = DefsMpw3::extractPix(word);
@@ -151,6 +160,7 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
   if (in.size() == 0) {
     return;
   }
+
   //  std::ofstream outUnsorted("unsorted.csv");
   //  outUnsorted << Hit::dbgFileHeader();
   //  for (const auto &hit : in) {
@@ -238,6 +248,7 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
   //    }
   //    outTs.flush();
   //  }
+
   // Now that we assigned the global timestamps we can sort them in
   // ascending order
   std::sort(in.begin(), in.end(), [](const Hit &h1, const Hit &h2) {
@@ -260,6 +271,7 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
   while (in.size() > 0) { // event building based on global TS
     HitBuffer prefab;
     evtNmb++;
+    //    std::cout << "operating on buffer size = " << in.size() << "\n";
     for (auto i = in.begin(); i < in.end(); i++) {
 
       if (i->globalTs - in.begin()->globalTs <=
@@ -274,6 +286,7 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
     //    for (auto i = prefab.begin(); i < prefab.end(); i++) {
     //      std::cout << i->toStr() << "\n";
     //    }
+
     in.erase(
         in.begin(),
         endTimewindow +

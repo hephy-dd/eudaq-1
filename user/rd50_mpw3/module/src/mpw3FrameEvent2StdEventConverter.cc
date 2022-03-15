@@ -64,11 +64,13 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
         tot += 256;
       }
       auto hitPixel = DefsMpw3::dColIdx2Pix(dcol, pix);
-      std::cout << "word = " << word << " dcol " << dcol << " pix " << pix
-                << " Te " << tsTe << " Le " << tsLe << " hitPixRow "
-                << hitPixel.row << " col " << hitPixel.col << " tot " << tot
-                << "\n"
-                << std::flush;
+      //      std::cout << "word = " << word << " dcol " << dcol << " pix " <<
+      //      pix
+      //                << " Te " << tsTe << " Le " << tsLe << " hitPixRow "
+      //                << hitPixel.row << " col " << hitPixel.col << " tot " <<
+      //                tot
+      //                << "\n"
+      //                << std::flush;
 
       plane.PushPixel(hitPixel.col, hitPixel.row,
                       tot); // store ToT as "raw pixel value"

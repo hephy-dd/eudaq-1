@@ -26,10 +26,10 @@ private:
       std::stringstream ss;
       auto idx = DefsMpw3::dColIdx2Pix(dcol, pix);
       ss << std::setfill('0') << " " << std::setw(2) << int(dcol) << ";  "
-         << int(pix) << ";  " << idx.row << ":" << std::setw(2) << idx.col
-         << ";   " << std::setw(3) << int(tsLe) << ";   " << std::setw(3)
-         << int(tsTe) << ";   " << std::setw(6) << globalTs << ";   "
-         << std::setw(5) << ovflwSOF << "\n";
+         << std::setw(2) << int(pix) << ";  " << std::setw(2) << idx.row << ":"
+         << std::setw(2) << idx.col << ";   " << std::setw(3) << int(tsLe)
+         << ";   " << std::setw(3) << int(tsTe) << ";   " << std::setw(6)
+         << globalTs << ";   " << std::setw(5) << ovflwSOF << "\n";
       return std::move(ss.str());
     }
     const static std::string inline dbgFileHeader() {
