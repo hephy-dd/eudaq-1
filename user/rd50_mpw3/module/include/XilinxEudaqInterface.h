@@ -131,7 +131,7 @@ namespace SVD {
            * xxx n Bits to fill up 32 bit word
            * {0/1}xxx is 24 bit in total
            */
-          return ((rWord >> 24) & 0xAF) == 0xAF;
+          return (rWord >> 24) == 0xAF;
         }
 
         static inline auto IsTrailer(const Defs::VMEData_t &rWord) noexcept {
@@ -141,7 +141,7 @@ namespace SVD {
            * xxx n Bits to fill up 32 bit word
            * {0/1}xxx is 24 bit in total
            */
-          return ((rWord >> 24) & 0xE0) == 0xE0;
+          return (rWord >> 24) == 0xE0;
         }
 
         inline auto PushFADCFrame(FADCPayload_t &rFADC,
