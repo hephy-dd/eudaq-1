@@ -96,8 +96,8 @@ void Mpw3FastDataCollector::DoStopRun() {
   mEventBuilderThread->join();
   mEventMerger.release();
 
-  mTestRunning->store(false, std::memory_order_release);
-  mTestThread->join();
+  //  mTestRunning->store(false, std::memory_order_release);
+  //  mTestThread->join();
 }
 
 void Mpw3FastDataCollector::DoReceive(eudaq::ConnectionSPC idx,
@@ -131,13 +131,16 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
         lastTime = std::chrono::high_resolution_clock::now();
       }
       for (int i = 0; i < frame.m_Data.size(); i++) {
-        euEvent->AddBlock(i, frame.m_Data[i]);
+        if (frame.m_Data[i].size() > 2) {
+          euEvent->AddBlock(i, frame.m_Data[i]);
+          euEvent->SetEventN(frame.m_EventNr);
+          WriteEvent(euEvent);
+        } else {
+          EUDAQ_WARN("too small frame size <= 2");
+        }
         // there might be more than 1 unpacker
         // assigned to this merger
       }
-      euEvent->SetEventN(frame.m_EventNr);
-      WriteEvent(euEvent);
-
     } else {
       idleLoops++;
       continue;
