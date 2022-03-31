@@ -218,10 +218,19 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
       }
       first = false;
 
-      // this is the ominous time-bin-matching, the whole reason for
-      // this class btw...
-      (*i)->globalTs = (ovflwCnt + (*i)->ovflwSOF) * DefsMpw3::dTPerOvflw +
-                       (*i)->tsLe * DefsMpw3::dTPerTsLsb;
+      if (!(*i)->tsGenerated) {
+        // this is the ominous time-bin-matching, the whole reason for
+        // this class btw...
+        (*i)->globalTs = (ovflwCnt + (*i)->ovflwSOF) * DefsMpw3::dTPerOvflw +
+                         (*i)->tsLe * DefsMpw3::dTPerTsLsb;
+        (*i)->tsGenerated = true;
+        /* we only want to generate the TS once. We have to check this as the
+         * current hit, if it is close to the end of the frame, might be merged
+         * with hits from the next frame into 1 event. The TS should be
+         * generated within the frame this hit originally belongs to, so SOF and
+         * EOF ovflwCnt are correct.
+         */
+      }
 
       //      auto pix = DefsMpw3::dColIdx2Pix((*i)->dcol, (*i)->pix);
 

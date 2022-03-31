@@ -21,6 +21,7 @@ private:
     uint8_t tsTe;
     DefsMpw3::ts_t globalTs;
     bool isPiggy;
+    bool tsGenerated = false;
 
     std::string inline toStr() const {
       std::stringstream ss;
