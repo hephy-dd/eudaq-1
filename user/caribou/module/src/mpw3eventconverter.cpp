@@ -12,76 +12,22 @@ bool Mpw3RawEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
                                                 eudaq::StdEventSP d2,
                                                 eudaq::ConfigSPC conf) const {
 
-  auto ev = std::dynamic_pointer_cast<const eudaq::RawEvent>(d1);
+  /* this event contains the very same data-format as the ones sent by the
+   * MPW3DataCollector the event type is hard coded within CaribouProducer,
+   * therefor we need an extra event-converter Use this simple hack to not have
+   * to copy the code from "Mpw3FrameEvent2StdEventConverter"
+   *
+   * !!! Attention:
+   * Eudaq has to be built with the RD50_MPW3 user-module in order for this to
+   * work
+   */
+  auto event = eudaq::Event::MakeShared("Mpw3FrameEvent");
+  // Set event ID
+  event->SetEventN(d1->GetEventN());
+  // Add data to the event
+  event->AddBlock(0, d1->GetBlock(0));
 
-  const int dimSensor =
-      64; // dimension of sensor array (assumed quadratic form)
-  // Data containers:
-  std::vector<uint64_t> timestamps;
-  std::vector<uint32_t> rawdata;
-
-  // Retrieve data from event
-  std::cout << "converting: #block" << ev->NumBlocks() << "\n" << std::flush;
-
-  if (ev->NumBlocks() == 1) {
-    auto datablock = ev->GetBlock(0);
-
-    auto sizeWord = sizeof(uint32_t);
-
-    /*
-     * data is stored in raw bytes, but we inserted (in getRawData @ caribou
-     * device) uint32_t values => we have to restore whole words of data
-     */
-
-    /*
-     * the protocol specifies a header
-     * 1st word: n word of data in block
-     */
-
-    //    memcpy(&nData, &datablock[0], sizeWord);
-    //    memcpy(&triggerN, &datablock[0] + sizeWord, sizeWord);
-    //    memcpy(&dimSensor, &datablock[0] + sizeWord, sizeWord);
-
-    //    std::cout << "          nData = " << nData;
-    rawdata.resize(datablock.size() /
-                   sizeWord); // resize to be able to contain the proper number
-                              // of sent data
-    memcpy(rawdata.data(), datablock.data(), rawdata.size() * sizeWord);
-
-    for (auto data : rawdata) {
-      std::cout << data << " ";
-    }
-
-    std::cout << "\n" << std::flush;
-    return false;
-
-    eudaq::StandardPlane plane(0, "Caribou", "RD50_MPW3");
-    plane.SetSizeZS(dimSensor, dimSensor, 0);
-    // we have a x * y grid, where each grid-point has 1  pixel (this is the 0)
-
-    //    for (int i = 0; i < nData; i++) {
-    //      int x = i / dimSensor;
-    //      int y = i % dimSensor;
-    //      /* this is the part of the protocol in which the hits per pixel
-    //       * are stored. We store a whole row (x) -> next col index -> next
-    //       full row
-    //       *                 |00|01|02|
-    //       * Eg sensor like  |10|11|12|  is stored as
-    //       |00|01|02|10|11|12|20|21|22|
-    //       *                 |20|21|22|
-    //       */
-
-    //      if (x <= dimSensor && y <= dimSensor) {
-    //        plane.PushPixel(x, y, rawdata[i]);
-    //      }
-    //    }
-
-    //    d2->AddPlane(plane);
-    //    d2->SetTriggerN(triggerN);
-    //    uint64_t timebegin = triggerN * 2 * 1e12;
-    //    d2->SetTimeBegin(timebegin);
-    //    d2->SetTimeEnd(timebegin);
-    //    return true;
-  }
-  return false;
+  auto retval = eudaq::StdEventConverter::Convert(event, d2, nullptr);
+  std::cout << " did work? " << retval;
+  return retval;
 }
