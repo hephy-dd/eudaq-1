@@ -1,10 +1,10 @@
 #include "XilinxEudaqInterface.h"
-#include "../tools/Logger.h"
+//#include "../tools/Logger.h"
 
 #include <sstream>
 
 namespace SVD {
-  using Tools::Logger;
+  //  using Tools::Logger;
 
   namespace XLNX_CTRL {
     namespace UPDDetails {
