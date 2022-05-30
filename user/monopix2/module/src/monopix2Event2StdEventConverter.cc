@@ -1,4 +1,3 @@
-#include "defs.h"
 #include "eudaq/RawEvent.hh"
 #include "eudaq/StdEventConverter.hh"
 
@@ -6,7 +5,18 @@ class Monopix2RawEvent2StdEventConverter : public eudaq::StdEventConverter {
 public:
   bool Converting(eudaq::EventSPC d1, eudaq::StdEventSP d2,
                   eudaq::ConfigSPC conf) const override;
-  static const uint32_t m_id_factory = eudaq::cstr2hash("Monopix2Raw");
+  static const uint32_t m_id_factory = eudaq::cstr2hash("Monopix2RawEvent");
+
+private:
+  const int dimSensorCol = 512, dimSensorRow = 512;
+
+  static uint32_t grayDecode(uint32_t gray);
+  static inline auto isTjMonoTS(const uint32_t word) {
+    return (word & 0xF8000000) == 0x48000000;
+  }
+  static inline auto isTjMonoData(const uint32_t word) {
+    return (word & 0xF8000000) == 0x40000000;
+  }
 };
 
 namespace {
@@ -19,62 +29,124 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
     eudaq::EventSPC d1, eudaq::StdEventSP d2, eudaq::ConfigSPC conf) const {
   auto ev = std::dynamic_pointer_cast<const eudaq::RawEvent>(d1);
 
-  //  std::cout << "converting MPW3FrameEvt\n" << std::flush;
+  std::vector<uint32_t> rawdata;
 
-  for (int i = 0; i < ev->NumBlocks(); i++) {
-    std::vector<uint32_t> rawdata;
+  const auto block = ev->GetBlock(0);
+  constexpr auto sizeWord = sizeof(uint32_t);
 
-    const auto block = ev->GetBlock(i);
-    constexpr auto sizeWord = sizeof(uint32_t);
-    if (block.size() <= 2 * sizeWord) {
-      // not even head and tail present, this definitely is bullshit
-      EUDAQ_WARN("invalid block size, skipping event");
-      return false;
-    }
+  rawdata.resize(block.size() / sizeWord);
+  memcpy(rawdata.data(), block.data(),
+         rawdata.size() * sizeWord); // convert bytes to words (uint32's)
 
-    /*
-     * there is a head and a tail, 1 word each
-     * we do not copy them
-     */
-    rawdata.resize(block.size() / sizeWord - 4); // without head and tail
-    memcpy(rawdata.data(),
-           block.data() +
-               sizeWord * 2, // TODO: *2 is double SOF (normal + piggy), find
-                             // out how to handle it properly
-           rawdata.size() * sizeWord); // starting 1 word after head
+  eudaq::StandardPlane plane(0, "Event", "Monopix2");
+  plane.SetSizeZS(dimSensorCol, dimSensorRow, 0);
 
-    eudaq::StandardPlane plane(0, "Event", "Monopix2");
-    plane.SetSizeZS(DefsMonopix2::dimSensorCol, DefsMonopix2::dimSensorRow, 0);
+  int le = -1, te = -1, row = -1, col = -1, tot, tjTS = -1, processingStep = 0,
+      errorCnt = 0;
+  bool insideFrame = false;
 
-    for (const auto &word : rawdata) {
-      /*
-       * each word represents a particle detection in the specified pixel for a
-       * certain ToT. This converter does not aim to generate a proper global
-       * Timestamp. We simply store the hit information of each word in a plane.
-       * Therefore meant only for the monitor not for real analysis!!!
-       */
-      auto dcol = DefsMonopix2::extractDcol(word);
-      auto pix = DefsMonopix2::extractPix(word);
-      int tsTe = DefsMonopix2::extractTsTe(word);
-      int tsLe = DefsMonopix2::extractTsLe(word);
-      int tot = tsTe - tsLe;
-
-      if (tot < 0) {
-        tot += 256;
-      }
-      auto hitPixel = DefsMonopix2::dColIdx2Pix(dcol, pix);
-      //      std::cout << "word = " << word << " dcol " << dcol << " pix " <<
-      //      pix
-      //                << " Te " << tsTe << " Le " << tsLe << " hitPixRow "
-      //                << hitPixel.row << " col " << hitPixel.col << " tot " <<
-      //                tot
-      //                << "\n"
-      //                << std::flush;
-
-      plane.PushPixel(hitPixel.col, hitPixel.row,
-                      tot); // store ToT as "raw pixel value"
-    }
-    d2->AddPlane(plane);
+  if (rawdata.size() < 2) { // not even SOF and EOF, this must be bullshit
+    EUDAQ_WARN("too little data in block, not converting this one");
+    return false;
   }
+
+  for (const auto &word : rawdata) {
+    if (isTjMonoTS(word)) { // we handle a timestamp word
+      tjTS = word & 0x7FFFFFF;
+    } else if (isTjMonoData(word)) { // this is a data word
+      std::vector<uint32_t> bytes = {
+          (word & 0x7FC0000) >> 18, (word & 0x003FE00) >> 9,
+          word & 0x00001FF}; // each raw data word can be split in 3 distinct
+                             // bytes which all carry different information
+                             // about the hit
+
+      //      std::cout << "data = 0x" << std::hex << bytes[0] << " 0x" <<
+      //      bytes[1]
+      //                << " 0x" << bytes[2] << " 0x" << bytes[3] << "\n";
+      for (auto d : bytes) {
+        if (d == 0x1bc) { // SOF
+          if (insideFrame) {
+            errorCnt++;
+            EUDAQ_WARN("SOF before EOF");
+          }
+          insideFrame = true;
+          processingStep = 0;
+
+        } else if (d == 0x17c) { // EOF
+          if (!insideFrame) {
+            errorCnt++;
+            EUDAQ_WARN("EOF before SOF");
+          }
+          insideFrame = false;
+
+        } else if (d == 0x13c) { // Idle
+          continue;
+        } else {
+          if (!insideFrame) {
+            errorCnt++;
+            //            EUDAQ_WARN("not in frame but got data words");
+          }
+
+          switch (processingStep) {
+          case 0:
+            // column data
+            col = (d & 0xff) << 1;
+            processingStep++;
+            break;
+          case 1:
+            le = grayDecode((d & 0xfe) >> 1);
+            te = (d & 0x01) << 6;
+            processingStep++;
+            break;
+          case 2:
+            // TS tailing edge split over 2 data words
+            te = grayDecode(te | ((d & 0xfc) >> 2));
+            row = (d & 0x01) << 8;
+            col = col + ((d & 0x02) >> 1); // column split in 2 bytes
+            processingStep++;
+            break;
+          case 3:
+            row = row | (d & 0xff); // row split in 2 bytes
+            processingStep = 0;
+            // we should have finished, store hit pixel
+            if (le < 0 && te < 0) {
+              errorCnt++;
+              EUDAQ_WARN("invalid TS: le = " + std::to_string(le) +
+                         " te = " + std::to_string(te));
+            }
+            tot =
+                le -
+                te; // time over threshold is TS leading edge - TS tailing edge
+            tot = tot < 0 ? tot + 128 : tot; // looks like an overflow, add 2^7
+
+            plane.PushPixel(col, row,
+                            tot); // store ToT as "raw pixel value"
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  d2->AddPlane(plane);
+  d2->SetTimeBegin(tjTS);
+  d2->SetTriggerN(d1->GetTriggerN());
+
+  if (errorCnt > 0) {
+    EUDAQ_WARN(std::to_string(errorCnt) + " errors occured during conversion");
+  }
+  if (insideFrame) {
+    EUDAQ_WARN("no data left but still inside a frame");
+  }
+
   return true;
+}
+
+uint32_t Monopix2RawEvent2StdEventConverter::grayDecode(uint32_t gray) {
+  uint32_t bin;
+  bin = gray;
+  while (gray >>= 1) {
+    bin ^= gray;
+  }
+  return bin;
 }
