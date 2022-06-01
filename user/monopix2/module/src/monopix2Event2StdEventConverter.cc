@@ -130,6 +130,7 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
 
   d2->AddPlane(plane);
   d2->SetTimeBegin(tjTS);
+  d2->SetTimeEnd(tjTS);
   d2->SetTriggerN(d1->GetTriggerN());
 
   if (errorCnt > 0) {
