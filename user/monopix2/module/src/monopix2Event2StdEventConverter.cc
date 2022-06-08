@@ -42,13 +42,8 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
   plane.SetSizeZS(dimSensorCol, dimSensorRow, 0);
 
   int le = -1, te = -1, row = -1, col = -1, tot, tjTS = -1, processingStep = 0,
-      errorCnt = 0;
+      errorCnt = 0, actualHits = 0;
   bool insideFrame = false;
-
-  if (rawdata.size() < 2) { // not even SOF and EOF, this must be bullshit
-    EUDAQ_WARN("too little data in block, not converting this one");
-    return false;
-  }
 
   for (const auto &word : rawdata) {
     if (isTjMonoTS(word)) { // we handle a timestamp word
@@ -67,7 +62,7 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
         if (d == 0x1bc) { // SOF
           if (insideFrame) {
             errorCnt++;
-            EUDAQ_WARN("SOF before EOF");
+            //            EUDAQ_WARN("SOF before EOF");
           }
           insideFrame = true;
           processingStep = 0;
@@ -75,7 +70,7 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
         } else if (d == 0x17c) { // EOF
           if (!insideFrame) {
             errorCnt++;
-            EUDAQ_WARN("EOF before SOF");
+            //            EUDAQ_WARN("EOF before SOF");
           }
           insideFrame = false;
 
@@ -115,20 +110,32 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
                          " te = " + std::to_string(te));
             }
             tot =
-                le -
-                te; // time over threshold is TS leading edge - TS tailing edge
+                te -
+                le; // time over threshold is TS leading edge - TS tailing edge
             tot = tot < 0 ? tot + 128 : tot; // looks like an overflow, add 2^7
+            if (errorCnt > 0) {
+              plane.PushPixel(col, row,
+                              tot); // store ToT as "raw pixel value"
+            } else {
+              EUDAQ_WARN("discarding frame as error occured");
+              errorCnt = 0;
+            }
 
-            plane.PushPixel(col, row,
-                            tot); // store ToT as "raw pixel value"
+            actualHits++;
             break;
           }
         }
       }
+    } else if ((word & 0x80000000) > 0) {
+      // this is a tlu trigger word, we do not care about them,
+      // got alrdy processed
+    } else {
+      EUDAQ_WARN("weird data word = " + std::to_string(word));
     }
   }
 
   d2->AddPlane(plane);
+  //  d2->SetTimestamp(tjTS, tjTS);
   d2->SetTimeBegin(tjTS);
   d2->SetTimeEnd(tjTS);
   d2->SetTriggerN(d1->GetTriggerN());
@@ -139,8 +146,8 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
   if (insideFrame) {
     EUDAQ_WARN("no data left but still inside a frame");
   }
-
-  return true;
+  return actualHits > 0; // there could be events with just a trigger word
+  // does not make sense to process them
 }
 
 uint32_t Monopix2RawEvent2StdEventConverter::grayDecode(uint32_t gray) {
