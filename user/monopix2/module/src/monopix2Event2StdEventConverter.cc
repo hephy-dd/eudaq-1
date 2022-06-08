@@ -30,6 +30,10 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
   auto ev = std::dynamic_pointer_cast<const eudaq::RawEvent>(d1);
 
   std::vector<uint32_t> rawdata;
+  bool discardInterruptedFrames =
+      conf->Get("DISCARD_INTERR_FRAME", "0") == "0" ? false : true;
+
+  std::cout << "discarding = " << discardInterruptedFrames << "\n";
 
   const auto block = ev->GetBlock(0);
   constexpr auto sizeWord = sizeof(uint32_t);
@@ -113,11 +117,11 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
                 te -
                 le; // time over threshold is TS leading edge - TS tailing edge
             tot = tot < 0 ? tot + 128 : tot; // looks like an overflow, add 2^7
-            if (errorCnt > 0) {
+            if (errorCnt > 0 && discardInterruptedFrames) {
+              EUDAQ_WARN("discarding frame as error occured");
+            } else {
               plane.PushPixel(col, row,
                               tot); // store ToT as "raw pixel value"
-            } else {
-              EUDAQ_WARN("discarding frame as error occured");
               errorCnt = 0;
             }
 
