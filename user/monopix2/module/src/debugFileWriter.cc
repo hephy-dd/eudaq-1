@@ -33,6 +33,7 @@ Monopix2DbgFileWriter::Monopix2DbgFileWriter(const std::string &patt) {
 void Monopix2DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
   auto evstd = eudaq::StandardEvent::MakeShared();
   if (!eudaq::StdEventConverter::Convert(ev, evstd, nullptr)) {
+    std::cout << "conversion failed\n";
     return; // conversion failed
   }
 
@@ -41,8 +42,9 @@ void Monopix2DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
     auto col = plane.GetX(i);
     auto row = plane.GetY(i);
     auto tot = plane.GetPixel(i);
+    auto triggerNmb = evstd->GetTriggerN();
 
     mOut << col << " " << row << " " << tot << " " << evstd->GetTimestampBegin()
-         << "\n";
+         << " " << triggerNmb << "\n";
   }
 }

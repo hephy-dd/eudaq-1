@@ -12,10 +12,15 @@ private:
 
   static uint32_t grayDecode(uint32_t gray);
   static inline auto isTjMonoTS(const uint32_t word) {
+
     return (word & 0xF8000000) == 0x48000000;
   }
   static inline auto isTjMonoData(const uint32_t word) {
     return (word & 0xF8000000) == 0x40000000;
+  }
+
+  static inline auto isTluTriggerNmb(const uint32_t word) {
+    return (word & 0x80000000) == 0x80000000;
   }
 };
 
@@ -30,10 +35,13 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
   auto ev = std::dynamic_pointer_cast<const eudaq::RawEvent>(d1);
 
   std::vector<uint32_t> rawdata;
-  bool discardInterruptedFrames =
-      conf->Get("DISCARD_INTERR_FRAME", "0") == "0" ? false : true;
-
-  std::cout << "discarding = " << discardInterruptedFrames << "\n";
+  std::stringstream log;
+  std::string error;
+  bool discardInterruptedFrames = false;
+  if (conf) {
+    discardInterruptedFrames =
+        conf->Get("DISCARD_INTERR_FRAME", "0") == "0" ? false : true;
+  }
 
   const auto block = ev->GetBlock(0);
   constexpr auto sizeWord = sizeof(uint32_t);
@@ -46,45 +54,73 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
   plane.SetSizeZS(dimSensorCol, dimSensorRow, 0);
 
   int le = -1, te = -1, row = -1, col = -1, tot, tjTS = -1, processingStep = 0,
-      errorCnt = 0, actualHits = 0;
+      errorCnt = 0, actualHits = 0, triggerNmb = -1;
   bool insideFrame = false;
 
+  int wordCnt = 0;
   for (const auto &word : rawdata) {
+    wordCnt++;
+    std::cout << word << " " << (word >> 31) << "\n";
+
+    log << "r " << rawdata.size() << "  w " << word << " ";
+
     if (isTjMonoTS(word)) { // we handle a timestamp word
       tjTS = word & 0x7FFFFFF;
+      log << " TS\n";
     } else if (isTjMonoData(word)) { // this is a data word
-      std::vector<uint32_t> bytes = {
+      log << " D: ";
+      std::vector<uint32_t> slices = {
           (word & 0x7FC0000) >> 18, (word & 0x003FE00) >> 9,
           word & 0x00001FF}; // each raw data word can be split in 3 distinct
-                             // bytes which all carry different information
-                             // about the hit
+                             // 9 bit slices which all carry different
+                             // information about the hit
 
-      //      std::cout << "data = 0x" << std::hex << bytes[0] << " 0x" <<
+      //      log << "data = 0x" << std::hex << bytes[0] << " 0x" <<
       //      bytes[1]
       //                << " 0x" << bytes[2] << " 0x" << bytes[3] << "\n";
-      for (auto d : bytes) {
+      for (auto d : slices) {
         if (d == 0x1bc) { // SOF
+
+          //          std::cout << "SOF\n";
+          log << " SOF ";
           if (insideFrame) {
             errorCnt++;
+            error = "SOF";
             //            EUDAQ_WARN("SOF before EOF");
           }
           insideFrame = true;
           processingStep = 0;
 
         } else if (d == 0x17c) { // EOF
+                                 //          std::cout << "EOF\n";
+          //          std::cout << " words processed " << wordCnt << " from
+          //          total "
+          //                    << rawdata.size() << "\n";
           if (!insideFrame) {
             errorCnt++;
+            error = "EOF";
             //            EUDAQ_WARN("EOF before SOF");
           }
           insideFrame = false;
-
         } else if (d == 0x13c) { // Idle
           continue;
         } else {
-          if (!insideFrame) {
-            errorCnt++;
-            //            EUDAQ_WARN("not in frame but got data words");
-          }
+          /* the smallest possible frame consists only of 1 Hit
+           * and looks like this:
+           *
+           * H | SOF| D0 | D1
+           * H | D2 | D3 | EOF
+           *
+           * H .. Header: 5bit
+           * dx .. different (pixel index, te, le) data: 9 bit
+           * SOF .. Start of frame
+           * EOF .. End of frame
+           *
+           * There might be more than 1 hit per frame,
+           * so the Dx might occur n times.
+           * In this case the last (possibly) not full 32 bit word
+           *  will be filled with an idle block
+           */
 
           switch (processingStep) {
           case 0:
@@ -108,50 +144,41 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
             row = row | (d & 0xff); // row split in 2 bytes
             processingStep = 0;
             // we should have finished, store hit pixel
-            if (le < 0 && te < 0) {
-              errorCnt++;
-              EUDAQ_WARN("invalid TS: le = " + std::to_string(le) +
-                         " te = " + std::to_string(te));
-            }
             tot =
                 te -
                 le; // time over threshold is TS leading edge - TS tailing edge
             tot = tot < 0 ? tot + 128 : tot; // looks like an overflow, add 2^7
-            if (errorCnt > 0 && discardInterruptedFrames) {
-              EUDAQ_WARN("discarding frame as error occured");
-            } else {
-              plane.PushPixel(col, row,
-                              tot); // store ToT as "raw pixel value"
-              errorCnt = 0;
-            }
-
+            plane.PushPixel(col, row,
+                            tot); // store ToT as "raw pixel value"
             actualHits++;
+            //            std::cout << "pushing\n";
             break;
           }
         }
       }
-    } else if ((word & 0x80000000) > 0) {
-      // this is a tlu trigger word, we do not care about them,
-      // got alrdy processed
+
+    } else if (isTluTriggerNmb(word)) {
+      std::cout << "Trigger\n";
+      triggerNmb = word & 0xFFFF;
     } else {
       EUDAQ_WARN("weird data word = " + std::to_string(word));
     }
   }
+  std::cout << "\n";
 
-  d2->AddPlane(plane);
-  //  d2->SetTimestamp(tjTS, tjTS);
-  d2->SetTimeBegin(tjTS);
-  d2->SetTimeEnd(tjTS);
-  d2->SetTriggerN(d1->GetTriggerN());
+  std::cout << "actHits = " << actualHits << " tgNmb = " << triggerNmb << "\n";
 
-  if (errorCnt > 0) {
-    EUDAQ_WARN(std::to_string(errorCnt) + " errors occured during conversion");
+  if (actualHits > 0 && triggerNmb >= 0) {
+
+    d2->AddPlane(plane);
+    //  d2->SetTimestamp(tjTS, tjTS);
+    d2->SetTimeBegin(tjTS);
+    d2->SetTimeEnd(tjTS);
+    d2->SetTriggerN(triggerNmb);
+    return true;
+  } else {
+    return false;
   }
-  if (insideFrame) {
-    EUDAQ_WARN("no data left but still inside a frame");
-  }
-  return actualHits > 0; // there could be events with just a trigger word
-  // does not make sense to process them
 }
 
 uint32_t Monopix2RawEvent2StdEventConverter::grayDecode(uint32_t gray) {
