@@ -35,8 +35,6 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
   auto ev = std::dynamic_pointer_cast<const eudaq::RawEvent>(d1);
 
   std::vector<uint32_t> rawdata;
-  std::stringstream log;
-  std::string error;
   bool discardInterruptedFrames = false;
   if (conf) {
     discardInterruptedFrames =
@@ -60,46 +58,29 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
   int wordCnt = 0;
   for (const auto &word : rawdata) {
     wordCnt++;
-    std::cout << word << " " << (word >> 31) << "\n";
-
-    log << "r " << rawdata.size() << "  w " << word << " ";
 
     if (isTjMonoTS(word)) { // we handle a timestamp word
       tjTS = word & 0x7FFFFFF;
-      log << " TS\n";
     } else if (isTjMonoData(word)) { // this is a data word
-      log << " D: ";
       std::vector<uint32_t> slices = {
           (word & 0x7FC0000) >> 18, (word & 0x003FE00) >> 9,
           word & 0x00001FF}; // each raw data word can be split in 3 distinct
                              // 9 bit slices which all carry different
                              // information about the hit
-
-      //      log << "data = 0x" << std::hex << bytes[0] << " 0x" <<
-      //      bytes[1]
-      //                << " 0x" << bytes[2] << " 0x" << bytes[3] << "\n";
       for (auto d : slices) {
         if (d == 0x1bc) { // SOF
 
-          //          std::cout << "SOF\n";
-          log << " SOF ";
           if (insideFrame) {
             errorCnt++;
-            error = "SOF";
-            //            EUDAQ_WARN("SOF before EOF");
+            EUDAQ_WARN("SOF before EOF");
           }
           insideFrame = true;
           processingStep = 0;
 
         } else if (d == 0x17c) { // EOF
-                                 //          std::cout << "EOF\n";
-          //          std::cout << " words processed " << wordCnt << " from
-          //          total "
-          //                    << rawdata.size() << "\n";
           if (!insideFrame) {
             errorCnt++;
-            error = "EOF";
-            //            EUDAQ_WARN("EOF before SOF");
+            EUDAQ_WARN("EOF before SOF");
           }
           insideFrame = false;
         } else if (d == 0x13c) { // Idle
@@ -151,29 +132,24 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
             plane.PushPixel(col, row,
                             tot); // store ToT as "raw pixel value"
             actualHits++;
-            //            std::cout << "pushing\n";
             break;
           }
         }
       }
 
     } else if (isTluTriggerNmb(word)) {
-      std::cout << "Trigger\n";
       triggerNmb = word & 0xFFFF;
     } else {
       EUDAQ_WARN("weird data word = " + std::to_string(word));
     }
   }
-  std::cout << "\n";
-
-  std::cout << "actHits = " << actualHits << " tgNmb = " << triggerNmb << "\n";
 
   if (actualHits > 0 && triggerNmb >= 0) {
 
     d2->AddPlane(plane);
     //  d2->SetTimestamp(tjTS, tjTS);
-    d2->SetTimeBegin(tjTS);
-    d2->SetTimeEnd(tjTS);
+    d2->SetTimeBegin(0);
+    d2->SetTimeEnd(0);
     d2->SetTriggerN(triggerNmb);
     return true;
   } else {
