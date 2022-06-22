@@ -27,7 +27,7 @@ namespace {
 Monopix2DbgFileWriter::Monopix2DbgFileWriter(const std::string &patt) {
   m_filepattern = patt;
   mOut = std::ofstream(patt);
-  mOut << "#col row tot TS\n";
+  mOut << "#col row tot TS trgNmb trgTs\n";
 }
 
 void Monopix2DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
@@ -45,6 +45,6 @@ void Monopix2DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
     auto triggerNmb = evstd->GetTriggerN();
 
     mOut << col << " " << row << " " << tot << " " << evstd->GetTimestampBegin()
-         << " " << triggerNmb << "\n";
+         << " " << triggerNmb << " " << evstd->GetTag("trgTs") << "\n";
   }
 }
