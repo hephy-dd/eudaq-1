@@ -63,7 +63,7 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
   struct Hit {
     int column, row, tot;
     Hit(int col, int rw, int t) {
-      col = col;
+      column = col;
       row = rw;
       tot = t;
     }
@@ -72,22 +72,17 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
   std::vector<Hit> hitBuff;
   for (const auto &word : rawdata) {
     wordCnt++;
-    std::cout << " word = " << word << " ";
 
     if (Mpx2Ids::isTjMonoTS(word)) { // we handle a timestamp word
       tjTS = word & 0x7FFFFFF;
-      std::cout << "ts ";
     } else if (Mpx2Ids::isTjMonoData(word)) { // this is a data word
-      std::cout << "d ";
       std::vector<uint32_t> slices = {
           (word & 0x7FC0000) >> 18, (word & 0x003FE00) >> 9,
           word & 0x00001FF}; // each raw data word can be split in 3 distinct
                              // 9 bit slices which all carry different
                              // information about the hit
-      std::cout << slices[0] << " " << slices[1] << " " << slices[2];
       for (auto d : slices) {
         if (d == Mpx2Ids::sof) { // SOF
-          std::cout << "sof\n";
 
           if (insideFrame) {
             errorCnt++;
@@ -97,14 +92,12 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
           processingStep = 0;
 
         } else if (d == Mpx2Ids::eof) { // EOF
-          std::cout << "eof\n";
           if (!insideFrame) {
             errorCnt++;
             EUDAQ_WARN("EOF before SOF");
           } else {
             // frame closed properly, add buffered hits to plane
 
-            std::cout << "hitbuff to plane\n";
             for (const auto &h : hitBuff) {
               actualHits++;
               plane.PushPixel(h.column, h.row, h.tot);
@@ -140,7 +133,6 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
           if (!insideFrame) {
             // we only want to except perfect data, so when we are not in a
             // frame we skip the data
-            //            std::cout << "data, but not in frame\n";
             continue;
           }
 
@@ -173,7 +165,6 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
             //            plane.PushPixel(col, row,
             //                            tot); // store ToT as "raw pixel
             //                            value"
-            std::cout << "appending hit\n";
             Hit h(col, row, tot);
             hitBuff.push_back(h);
             break;
@@ -182,16 +173,12 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
       }
 
     } else if (Mpx2Ids::isTluTrigger(word)) {
-      std::cout << "tr ";
       triggerNmb = word & 0xFFFF;
       triggerTs = (word >> 16) & 0x7FFF;
     } else {
       EUDAQ_WARN("weird data word = " + std::to_string(word));
     }
-    std::cout << "\n";
   }
-
-  std::cout << "\n---------------\n";
 
   if (triggerNmb != d1->GetTriggerN()) {
     EUDAQ_WARN("trgNmb in data " + std::to_string(triggerNmb) +
@@ -206,6 +193,12 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
     d2->SetTimeBegin(0);
     d2->SetTimeEnd(0);
     uint32_t trgNmb = d1->GetTriggerN();
+    if (trgNmb > 32768) {
+      // may not be bigger than 15 bit
+      // bigger values indicate shitty data from producer
+      EUDAQ_WARN("invalid triggerNmb: " + std::to_string(d1->GetTriggerN()));
+      return false;
+    }
     auto trgOvflw = d1->GetTag("trgOvflw");
     if (!trgOvflw.empty()) {
       trgNmb +=
@@ -213,18 +206,16 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
           uint32_t(32768); // trigger number is 15bit value => 1
                            // ovflw corresponds to 32768 trigger increments
     }
+
     d2->SetTriggerN(trgNmb);
     d2->SetTag("trgTs", std::to_string(triggerTs));
 
     if (hitBuff.size() > 0) {
-      std::cout << "frame not closed\n";
       EUDAQ_WARN("finishing event, but still buffered hits");
     }
-    std::cout << "success, got " << actualHits << "\n";
     return true;
 
   } else {
-    std::cout << "discarding event, no hits\n";
     return false;
   }
 }
