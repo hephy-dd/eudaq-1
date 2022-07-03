@@ -18,16 +18,18 @@ private:
 };
 
 namespace {
-  auto dummy0 = eudaq::Factory<eudaq::FileWriter>::Register<
-      Monopix2DbgFileWriter, std::string &>(eudaq::cstr2hash("txt"));
-  auto dummy1 = eudaq::Factory<eudaq::FileWriter>::Register<
-      Monopix2DbgFileWriter, std::string &&>(eudaq::cstr2hash("txt"));
+auto dummy0 = eudaq::Factory<eudaq::FileWriter>::Register<Monopix2DbgFileWriter,
+                                                          std::string &>(
+    eudaq::cstr2hash("txt"));
+auto dummy1 = eudaq::Factory<eudaq::FileWriter>::Register<Monopix2DbgFileWriter,
+                                                          std::string &&>(
+    eudaq::cstr2hash("txt"));
 } // namespace
 
 Monopix2DbgFileWriter::Monopix2DbgFileWriter(const std::string &patt) {
   m_filepattern = patt;
   mOut = std::ofstream(patt);
-  mOut << "#col row tot TS trgNmb trgTs\n";
+  mOut << "#col row tot TS trgNmb trgTs multiHits\n";
 }
 
 void Monopix2DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
@@ -45,6 +47,7 @@ void Monopix2DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
     auto triggerNmb = evstd->GetTriggerN();
 
     mOut << col << " " << row << " " << tot << " " << evstd->GetTimestampBegin()
-         << " " << triggerNmb << " " << evstd->GetTag("trgTs") << "\n";
+         << " " << triggerNmb << " " << evstd->GetTag("trgTs") << " "
+         << evstd->GetTag("multiple_hits") << "\n";
   }
 }

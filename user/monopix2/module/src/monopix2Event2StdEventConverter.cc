@@ -14,27 +14,27 @@ private:
 };
 
 namespace {
-  auto dummy0 = eudaq::Factory<eudaq::StdEventConverter>::Register<
-      Monopix2RawEvent2StdEventConverter>(
-      Monopix2RawEvent2StdEventConverter::m_id_factory);
+auto dummy0 = eudaq::Factory<eudaq::StdEventConverter>::Register<
+    Monopix2RawEvent2StdEventConverter>(
+    Monopix2RawEvent2StdEventConverter::m_id_factory);
 }
 
 namespace Mpx2Ids {
-  static const uint32_t sof = 0x1bc;
-  static const uint32_t eof = 0x17c;
-  static const uint32_t idle = 0x13c;
+static const uint32_t sof = 0x1bc;
+static const uint32_t eof = 0x17c;
+static const uint32_t idle = 0x13c;
 
-  static inline auto isTjMonoTS(const uint32_t word) {
+static inline auto isTjMonoTS(const uint32_t word) {
 
-    return (word & 0xF8000000) == 0x48000000;
-  }
-  static inline auto isTjMonoData(const uint32_t word) {
-    return (word & 0xF8000000) == 0x40000000;
-  }
+  return (word & 0xF8000000) == 0x48000000;
+}
+static inline auto isTjMonoData(const uint32_t word) {
+  return (word & 0xF8000000) == 0x40000000;
+}
 
-  static inline auto isTluTrigger(const uint32_t word) {
-    return (word & 0x80000000) == 0x80000000;
-  }
+static inline auto isTluTrigger(const uint32_t word) {
+  return (word & 0x80000000) == 0x80000000;
+}
 
 } // namespace Mpx2Ids
 
@@ -57,6 +57,8 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
   int le = -1, te = -1, row = -1, col = -1, tot, tjTS = -1, processingStep = 0,
       errorCnt = 0, actualHits = 0, triggerNmb = -1, triggerTs = -1;
   bool insideFrame = false;
+  bool multipleTrgs = false;
+  int doubleHits = 0;
 
   int wordCnt = 0;
 
@@ -167,31 +169,35 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
             //                            value"
             Hit h(col, row, tot);
             hitBuff.push_back(h);
+            if (multipleTrgs) {
+              doubleHits++;
+            }
             break;
           }
         }
       }
 
     } else if (Mpx2Ids::isTluTrigger(word)) {
+      if (triggerNmb != -1) {
+        multipleTrgs = true;
+      }
+
       triggerNmb = word & 0xFFFF;
       triggerTs = (word >> 16) & 0x7FFF;
+
     } else {
       EUDAQ_WARN("weird data word = " + std::to_string(word));
     }
   }
 
-  if (triggerNmb != d1->GetTriggerN()) {
-    EUDAQ_WARN("trgNmb in data " + std::to_string(triggerNmb) +
-               " not matching trgNmb in event " +
-               std::to_string(d1->GetTriggerN()));
-  }
+  //  if (triggerNmb != d1->GetTriggerN()) {
+  //    EUDAQ_WARN("trgNmb in data " + std::to_string(triggerNmb) +
+  //               " not matching trgNmb in event " +
+  //               std::to_string(d1->GetTriggerN()));
+  //  }
 
   if (actualHits > 0) {
 
-    d2->AddPlane(plane);
-    //  d2->SetTimestamp(tjTS, tjTS);
-    d2->SetTimeBegin(0);
-    d2->SetTimeEnd(0);
     uint32_t trgNmb = d1->GetTriggerN();
     if (trgNmb > 32768) {
       // may not be bigger than 15 bit
@@ -207,6 +213,14 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
                            // ovflw corresponds to 32768 trigger increments
     }
 
+    d2->AddPlane(plane);
+    //  d2->SetTimestamp(tjTS, tjTS);
+    d2->SetTimeBegin(0);
+    d2->SetTimeEnd(0);
+    d2->SetTag("multiple_hits", doubleHits);
+    // each hit is assigned to 2 triggerNmbs by the producer
+    // keep track of the number of hits which are double assigned for debugging
+    // purposes
     d2->SetTriggerN(trgNmb);
     d2->SetTag("trgTs", std::to_string(triggerTs));
 
