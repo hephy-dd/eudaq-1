@@ -63,6 +63,8 @@ void Mpw3FastDataCollector::DoStartRun() {
 void Mpw3FastDataCollector::DoStopRun() {
   mEventBuilderRunning->store(false, std::memory_order_release);
   mEventBuilderThread->join();
+  mEventBuilderThread.reset();
+  mEventBuilderRunning.reset();
   mEventMerger.reset();
 }
 
