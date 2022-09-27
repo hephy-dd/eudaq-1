@@ -115,6 +115,12 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
     // first word is SOF and last word is EOF, so far seems to be valid
     ovFlwSOF = DefsMpw3::extractOverFlowCnt(rawData.front());
     ovFlwEOF = DefsMpw3::extractOverFlowCnt(rawData.back());
+    // the ovflwCnt from FPGA is only 23 bit long = > ovflw after ~54s, not
+    // sufficient count ovflws of the ovflwCnt ;)
+    if (ovFlwSOF < mOldOvflwCnt) {
+      mOvflwCntOfOvflwCnt++;
+    }
+    mOldOvflwCnt = ovFlwSOF;
 
   } else {
     EUDAQ_WARN("invalid frame (not starting with SOF / not ending with EOF)");
@@ -222,7 +228,8 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
         // this is the ominous time-bin-matching, the whole reason for
         // this class btw...
         (*i)->globalTs = (ovflwCnt + (*i)->ovflwSOF) * DefsMpw3::dTPerOvflw +
-                         (*i)->tsLe * DefsMpw3::dTPerTsLsb;
+                         (*i)->tsLe * DefsMpw3::dTPerTsLsb +
+                         mOvflwCntOfOvflwCnt * DefsMpw3::dtPerOvflwOfOvfl;
         (*i)->tsGenerated = true;
         /* we only want to generate the TS once. We have to check this as the
          * current hit, if it is close to the end of the frame, might be merged

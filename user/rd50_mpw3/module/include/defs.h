@@ -19,13 +19,15 @@ namespace DefsMpw3 {
   static constexpr std::size_t dimSensorRow = 64;
 
   static constexpr ts_t dTPerTsLsb =
-      1; // number of [ns] per LSB in TS_LE and TS_TE
+      25; // number of [ns] per LSB in TS_LE and TS_TE
   static constexpr ts_t dTPerOvflw =
       dTPerTsLsb *
       256; // number of [ns] per timestamp-overflow (integer from FPGA)
   static constexpr ts_t dTSameEvt =
       0; // the timewindow in [ns] in which multiple hits are considered to
          // belong to the same event
+  static constexpr ts_t dtPerOvflwOfOvfl = dTPerOvflw * (1 << 23);
+  // ovflCnt comes with 23 bit, 1 ovflw ~ 6.4us => 1 ovflw of the ovflw ~ 54s
 
   /* the following methods are used for extraction of different data in a 32bit
    * EOC-word
