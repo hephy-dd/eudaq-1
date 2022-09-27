@@ -167,11 +167,8 @@ namespace SVD {
 
     class FADCGbEMerger {
     public:
-      FADCGbEMerger(
-          const std::vector<BackEndID_t> &rIDs,
-          //                    std::shared_ptr<SVD::XLNX_CTRL::UPDDetails::PayloadBuffer_t>
-          //                        testBuffer,
-          eudaq::LogSender &logger);
+      FADCGbEMerger(const std::vector<BackEndID_t> &rIDs,
+                    eudaq::LogSender &logger);
       FADCGbEMerger(const FADCGbEMerger &rOther) = delete;
       FADCGbEMerger(FADCGbEMerger &&rOther) noexcept;
       ~FADCGbEMerger();

@@ -60,14 +60,10 @@ namespace SVD {
               auto ss = std::stringstream();
               ss << "Dropped payload packets, from FADC #"
                  << VMEBaseFromPackage(data.back()) << '!';
-              //              Logger::Log(Logger::Type_t::Warning, m_gName,
-              //              ss.str());
               m_euLogger->SendLogMessage(
                   eudaq::LogMessage(ss.str(), eudaq::LogMessage::LVL_WARN));
             }
           } catch (const std::runtime_error &rError) {
-            //            Logger::Log(Logger::Type_t::Warning, m_gName,
-            //            rError.what());
             m_euLogger->SendLogMessage(
                 eudaq::LogMessage(std::string(m_gName) + ": " + rError.what(),
                                   eudaq::LogMessage::LVL_WARN));
@@ -123,8 +119,6 @@ namespace SVD {
               ss << "Expected package number " << (lastPayload & 0xffffff)
                  << ", got: " << curPayload << '!'
                  << " word = " << frame.back();
-              //              Logger::Log(Logger::Type_t::Warning, m_gName,
-              //              ss.str());
               m_euLogger->SendLogMessage(
                   eudaq::LogMessage(ss.str(), eudaq::LogMessage::LVL_WARN));
               lastPayload = curPayload;

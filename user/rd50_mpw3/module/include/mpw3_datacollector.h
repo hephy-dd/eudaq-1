@@ -26,7 +26,6 @@ public:
 
 private:
   void WriteEudaqEventLoop();
-  void dummyDataGenerator();
   std::mutex mMtxMap;
   std::map<eudaq::ConnectionSPC, std::deque<eudaq::EventSPC>> mConnEvque;
   std::set<eudaq::ConnectionSPC> mConnInactive;

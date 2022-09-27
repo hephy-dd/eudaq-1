@@ -40,35 +40,7 @@ void Mpw3FastDataCollector::DoConfigure() {
   }
 }
 
-void Mpw3FastDataCollector::DoInitialise() {
-
-  std::cout << "initialising\n";
-  std::ifstream in("/mnt/data/mpw3/test_data/data.dat");
-  if (!in.is_open()) {
-    std::cout << "failed to open file\n";
-    return;
-  }
-  std::string line = "";
-  size_t row = 0, col = 0;
-  while (std::getline(in, line)) {
-    if (line.length() == 0 || '#' == line[0]) {
-      // empty or comment line
-      continue;
-    }
-
-    std::istringstream is(line);
-    uint32_t dcol, pix, tsTe, tsLe, piggy, word = 0;
-    is >> dcol;
-    is >> pix;
-    is >> tsLe;
-    is >> tsTe;
-    is >> piggy;
-    word = (dcol << 24) | (piggy << 23) | (pix << 16) | (tsTe << 8) | tsLe;
-    //    std::cout << "word = " << word;
-    mTestFrame.push_back(word);
-  }
-  std::cout << "testdata size = " << mTestFrame.size() << "\n";
-}
+void Mpw3FastDataCollector::DoInitialise() {}
 
 void Mpw3FastDataCollector::DoReset() {
   std::unique_lock<std::mutex> lk(mMtxMap);
@@ -84,9 +56,6 @@ void Mpw3FastDataCollector::DoStartRun() {
   mEventBuilderRunning = std::make_unique<std::atomic<bool>>(true);
   mEventBuilderThread = std::make_unique<std::thread>(
       &Mpw3FastDataCollector::WriteEudaqEventLoop, this);
-  //  mTestThread = std::make_unique<std::thread>(
-  //      &Mpw3FastDataCollector::dummyDataGenerator, this);
-  //  mTestRunning = std::make_unique<std::atomic<bool>>(true);
 
   mStartTime = std::chrono::high_resolution_clock::now();
 }
@@ -94,10 +63,7 @@ void Mpw3FastDataCollector::DoStartRun() {
 void Mpw3FastDataCollector::DoStopRun() {
   mEventBuilderRunning->store(false, std::memory_order_release);
   mEventBuilderThread->join();
-  mEventMerger.release();
-
-  //  mTestRunning->store(false, std::memory_order_release);
-  //  mTestThread->join();
+  mEventMerger.reset();
 }
 
 void Mpw3FastDataCollector::DoReceive(eudaq::ConnectionSPC idx,
@@ -121,15 +87,16 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
       // simply put data in event, StandardEventConverter got time to extract
       // triggerNr, pixelHit,...
 
-      if (nEuEvent++ % 1000 == 0) {
-        auto duration = std::chrono::high_resolution_clock::now() - lastTime;
-        std::cout << "writing euEvent " << nEuEvent << " perf = "
-                  << double(32 * frame.m_Data.front().size()) * 1e5 /
-                         (double(duration.count()) * 1e-9)
-                  << " Bit/s \n";
+      //      if (nEuEvent++ % 1000 == 0) {
+      //        auto duration = std::chrono::high_resolution_clock::now() -
+      //        lastTime; std::cout << "writing euEvent " << nEuEvent << " perf
+      //        = "
+      //                  << double(32 * frame.m_Data.front().size()) * 1e5 /
+      //                         (double(duration.count()) * 1e-9)
+      //                  << " Bit/s \n";
 
-        lastTime = std::chrono::high_resolution_clock::now();
-      }
+      //        lastTime = std::chrono::high_resolution_clock::now();
+      //      }
       for (int i = 0; i < frame.m_Data.size(); i++) {
         if (frame.m_Data[i].size() > 2) {
           euEvent->AddBlock(i, frame.m_Data[i]);
@@ -144,45 +111,6 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
     } else {
       idleLoops++;
       continue;
-    }
-  }
-}
-
-void Mpw3FastDataCollector::dummyDataGenerator() {
-  const uint32_t head = 0xAF << 24;
-  const uint32_t tail = 0xE0 << 24;
-  const int nData = 4000 / sizeof(uint32_t); // min = 4000 bit, max = 8000 bit
-  uint32_t packageNmb = 0;
-  SVD::XLNX_CTRL::UPDDetails::Payload_t data;
-  data.reserve(nData + 2 + 1);
-  auto lastTime = std::chrono::high_resolution_clock::now();
-
-  while (mTestRunning->load(std::memory_order_acquire)) {
-    data.clear();
-    if (packageNmb++ % 100000 == 0) {
-      auto duration = std::chrono::high_resolution_clock::now() - lastTime;
-
-      std::cout << "sending pack " << packageNmb << " perf = "
-                << double(nData * 32) * 1e5 / (double(duration.count()) * 1e-9)
-                << " Bit/s\n";
-      lastTime = std::chrono::high_resolution_clock::now();
-    }
-    data.push_back(head);
-    //    uint32_t dummy;
-    //    for (int i = 0; i < nData; i++) {
-    //      dummy = std::rand();
-    //      data.push_back(dummy);
-    //    }
-    data.insert(data.end(), mTestFrame.begin(), mTestFrame.end());
-
-    data.push_back(tail);
-    data.push_back(packageNmb << 8);
-    while (
-        !mTestBuffer->Push(data) &&
-        mTestRunning->load(
-            std::memory_order_relaxed)) { // returns false if the push was not
-      // successfull, ie buffer full.
-      //      std::this_thread::sleep_for(std::chrono::nanoseconds(-1));
     }
   }
 }
