@@ -36,6 +36,7 @@ void Mpw3FastDataCollector::DoConfigure() {
     SVD::XLNX_CTRL::BackEndID_t xlnxBoardId;
     xlnxBoardId.m_Address = conf->Get("VME_ADDR", 1);
     xlnxBoardId.m_Crate = conf->Get("CRATE_NO", 1);
+    mBackEndIDs.clear();
     mBackEndIDs.push_back(xlnxBoardId);
   }
 }
@@ -89,16 +90,6 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
       // simply put data in event, StandardEventConverter got time to extract
       // triggerNr, pixelHit,...
 
-      //      if (nEuEvent++ % 1000 == 0) {
-      //        auto duration = std::chrono::high_resolution_clock::now() -
-      //        lastTime; std::cout << "writing euEvent " << nEuEvent << " perf
-      //        = "
-      //                  << double(32 * frame.m_Data.front().size()) * 1e5 /
-      //                         (double(duration.count()) * 1e-9)
-      //                  << " Bit/s \n";
-
-      //        lastTime = std::chrono::high_resolution_clock::now();
-      //      }
       for (int i = 0; i < frame.m_Data.size(); i++) {
         if (frame.m_Data[i].size() > 2) {
           euEvent->AddBlock(i, frame.m_Data[i]);

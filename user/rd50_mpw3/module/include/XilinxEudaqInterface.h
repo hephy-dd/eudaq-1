@@ -40,10 +40,6 @@ namespace SVD {
         static constexpr auto m_gName = "UDPReceiver";
         static constexpr auto m_gTimeout = 2500000;
 
-        //  static constexpr auto m_gIP =
-        //      std::array<uint8_t, 3>({uint8_t(192), uint8_t(168),
-        //      uint8_t(201)});
-
         inline static auto constexpr PortFromID(uint8_t vmeBase) noexcept
             -> Defs::VMEData_t {
           return vmeBase | (0xc3 << 8);

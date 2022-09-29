@@ -138,12 +138,13 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
   // between both
   for (auto i = lastSOF.base(); i < firstEOF; i++) {
     const auto word = *i;
+    DefsMpw3::HitInfo hi(word);
     Hit hit;
-    hit.dcol = DefsMpw3::extractDcol(word);
-    hit.pix = DefsMpw3::extractPix(word);
-    hit.tsLe = DefsMpw3::extractTsLe(word);
-    hit.tsTe = DefsMpw3::extractTsTe(word);
-    hit.isPiggy = bool(DefsMpw3::extractPiggy(word));
+    hit.dcol = hi.dcol;
+    hit.pix = hi.pix;
+    hit.tsLe = hi.tsLe;
+    hit.tsTe = hi.tsTe;
+    hit.isPiggy = hi.piggy;
     hit.ovflwSOF = ovFlwSOF;
     hit.ovflwEOF = ovFlwEOF;
     hit.avgFrameOvflw = double(ovFlwEOF - ovFlwSOF) / 2.0;

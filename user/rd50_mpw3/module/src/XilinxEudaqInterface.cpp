@@ -52,7 +52,6 @@ namespace SVD {
             }
             if (data.empty())
               continue;
-
             auto iRet = 0;
             for (; (iRet < m_gRetries) && !m_Buffer->Push(data); ++iRet)
               ;
@@ -122,6 +121,7 @@ namespace SVD {
               m_euLogger->SendLogMessage(
                   eudaq::LogMessage(ss.str(), eudaq::LogMessage::LVL_WARN));
               lastPayload = curPayload;
+            } else {
             }
           } else {
             continue;
