@@ -1,4 +1,5 @@
 #include "../tools/Defs.h"
+#include <iomanip>
 #include <iostream>
 #include <stdint.h>
 
@@ -40,30 +41,28 @@ namespace DefsMpw3 {
    */
 
   word_t inline extractDcol(word_t word) { // EOC_ADDR
-    return (word & (0x1F << 24)) >> 24;
+    return ((word >> 24) & 0x1F);
   };
   word_t inline extractPix(word_t word) { // PIX_ADDR
-    return (word & (0x7F << 16)) >> 16;
+    return ((word >> 16) & 0x7F);
   };
   word_t inline extractTsTe(word_t word) { // TS_TE
-    return (word & (0xFF << 8)) >> 8;
+    return (word >> 8) & 0xFF;
   };
   word_t inline extractTsLe(word_t word) { return word & 0xFF; }; // TS_LE
   word_t inline extractPiggy(word_t word) {
-    return (word & (1 << 23)) >> 23;
+    return (word >> 23) & 0x01;
   }; // piggy or base
-  word_t inline extractOverFlowCnt(word_t word) {
-    return word & ~(0x1FF << 23);
-  }
+  word_t inline extractOverFlowCnt(word_t word) { return word & 0xFF; }
 
   bool inline isSOF(word_t word) {
-    return ((word >> 24) & 0xAF) == 0xAF;
+    return word >> 24 == 0xAF;
   } // is given word Start Of Frame?
   bool inline isEOF(word_t word) {
-    return ((word >> 24) & 0xE0) == 0xE0;
+    return word >> 24 == 0xE0;
   } // is given word End Of Frame?
 
-  static inline PixelIndex dColIdx2Pix(int dcol, int pix) {
+  static inline PixelIndex dColIdx2Pix(size_t dcol, size_t pix) {
     /*
      * The pixel in a double column are enumerated in a snake-like pattern
      * eg dcol 0 for pixel 1 -> 5:
@@ -103,6 +102,60 @@ namespace DefsMpw3 {
 
     return std::move(retval);
   }
+
+  struct HitInfo {
+    word_t dcol, pix, tsTe, tsLe, OvFlwCnt, initialWord;
+    int tot;
+    bool sof, eof, piggy;
+    PixelIndex pixIdx;
+    HitInfo(word_t word) {
+      initialWord = word;
+      dcol = extractDcol(word);
+      pix = extractPix(word);
+      tsTe = extractTsTe(word);
+      tsLe = extractTsLe(word);
+      calcTot();
+
+      OvFlwCnt = extractOverFlowCnt(word);
+      sof = isSOF(word);
+      eof = isEOF(word);
+      piggy = extractPiggy(word) > 0 ? true : false;
+      pixIdx = dColIdx2Pix(dcol, pix);
+    }
+    HitInfo() {}
+
+    inline std::string toStr() {
+      std::stringstream ss;
+      if (!sof && !eof) {
+        ss << "piggy? " << piggy << " idx = " << std::setw(2)
+           << std::setfill('0') << pixIdx.row << ":" << std::setw(2)
+           << std::setfill('0') << pixIdx.col << " TSTE = " << std::setw(3)
+           << std::setfill('0') << tsTe << " TSLE = " << std::setw(3)
+           << std::setfill('0') << tsLe << " Tot = " << std::setw(3)
+           << std::setfill('0') << tot;
+      } else {
+        if (sof) {
+          ss << "SOF ";
+        } else {
+          ss << "EOF ";
+        }
+
+        ss << "ovflwCnt = " << OvFlwCnt;
+      }
+      return ss.str();
+    }
+
+    inline void generateGlobalTs(uint32_t ovflwCnt) {
+      tsTe += 256 * ovflwCnt;
+      tsLe += 256 * ovflwCnt;
+      calcTot();
+    }
+    inline void calcTot() {
+      tot = tsLe <= tsTe
+                ? int(tsTe) - int(tsLe)
+                : 256 + int(tsTe) - int(tsLe); // account for possible overflows
+    }
+  };
 
 } // namespace DefsMpw3
 
