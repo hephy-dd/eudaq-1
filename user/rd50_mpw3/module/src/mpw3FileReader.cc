@@ -1,16 +1,17 @@
 #include "mpw3FileReader.h"
 
 #include "eudaq/Logger.hh"
+#define DEBUG_OUTPUT
 
 namespace {
-  auto dummy0 = eudaq::Factory<eudaq::FileReader>::Register<Mpw3FileReader,
-                                                            std::string &>(
-      eudaq::cstr2hash("mpw3raw"));
-  auto dummy1 = eudaq::Factory<eudaq::FileReader>::Register<Mpw3FileReader,
-                                                            std::string &&>(
-      eudaq::cstr2hash("mpw3raw"));
-  // has to be same name as mpw3FileWriter file extension to be recognized by
-  // euCliConverter
+auto dummy0 =
+    eudaq::Factory<eudaq::FileReader>::Register<Mpw3FileReader, std::string &>(
+        eudaq::cstr2hash("mpw3raw"));
+auto dummy1 =
+    eudaq::Factory<eudaq::FileReader>::Register<Mpw3FileReader, std::string &&>(
+        eudaq::cstr2hash("mpw3raw"));
+// has to be same name as mpw3FileWriter file extension to be recognized by
+// euCliConverter
 
 } // namespace
 
@@ -52,7 +53,8 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
       }
 
       if (processFrame(ev)) {
-        break;
+        break; // processed frame successful, therefore we should continue
+               // preparing and returning events before processing next one
       } else {
         EUDAQ_WARN("Error processing frame; skipping this one");
         continue;
@@ -115,8 +117,8 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
     // first word is SOF and last word is EOF, so far seems to be valid
     ovFlwSOF = DefsMpw3::extractOverFlowCnt(rawData.front());
     ovFlwEOF = DefsMpw3::extractOverFlowCnt(rawData.back());
-    // the ovflwCnt from FPGA is only 23 bit long = > ovflw after ~54s, not
-    // sufficient count ovflws of the ovflwCnt ;)
+    // the ovflwCnt from FPGA is only 8 bit long = > ovflw after ~3ms, not
+    // sufficient! count ovflws of the ovflwCnt ;)
     if (ovFlwSOF < mOldOvflwCnt) {
       mOvflwCntOfOvflwCnt++;
     }
@@ -164,16 +166,23 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
 
 void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
 
+#ifdef DEBUG_OUTPUT
+  static int nEvt = 0;
+#endif
   if (in.size() == 0) {
     return;
   }
 
-  //  std::ofstream outUnsorted("unsorted.csv");
-  //  outUnsorted << Hit::dbgFileHeader();
-  //  for (const auto &hit : in) {
-  //    outUnsorted << hit.toStr();
-  //  }
-  //  outUnsorted.flush();
+#ifdef DEBUG_OUTPUT
+  if (nEvt < 5) {
+    std::ofstream outUnsorted("unsorted.csv", std::ios_base::app);
+    outUnsorted << Hit::dbgFileHeader();
+    for (const auto &hit : in) {
+      outUnsorted << hit.toStr();
+    }
+    outUnsorted.flush();
+  }
+#endif
 
   /*
    * Event-Building + Time-Bin-Matching upcoming..
@@ -201,9 +210,24 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
       }
     }
   }
-
-  //  std::ofstream outSorted("sorted.csv");
-  //  outSorted << Hit::dbgFileHeader();
+#ifdef DEBUG_OUTPUT
+  if (nEvt < 5) {
+    std::ofstream outSorted("sorted.csv", std::ios_base::app);
+    outSorted << Hit::dbgFileHeader();
+    for (int dcol = 0; dcol < DefsMpw3::dimSensorCol / 2; dcol++) {
+      const auto &currDCol = hitsSortedByDCol[dcol];
+      DefsMpw3::ts_t ovflwCnt = 0;
+      bool first = true;
+      for (auto i = currDCol.begin(); i < currDCol.end();
+           i++) // i is an iterator pointing to an iterator, quite some
+      // dereferencing to do...
+      {
+        outSorted << (*i)->toStr();
+        outSorted.flush();
+      }
+    }
+  }
+#endif
 
   for (int dcol = 0; dcol < DefsMpw3::dimSensorCol / 2; dcol++) {
     const auto &currDCol = hitsSortedByDCol[dcol];
@@ -214,10 +238,11 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
          i++) // i is an iterator pointing to an iterator, quite some
     // dereferencing to do...
     {
-      //      outSorted << (*i)->toStr();
+
       if (!first &&
-          ((*i)->tsLe <
-           (*(i - 1))->tsLe)) { // we may not check for overflow in the 1st
+          (std::abs(int((*i)->tsLe) - int((*(i - 1))->tsLe))) >
+              DefsMpw3::lsbToleranceOvflwDcol) { // we may not check for
+                                                 // overflow in the 1st
         // element, as there will be no *(i - 1) !
         ovflwCnt++; // we detected a higher TS_LE followed by a lower
                     // one
@@ -230,21 +255,22 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
         // this class btw...
         (*i)->globalTs = (ovflwCnt + (*i)->ovflwSOF) * DefsMpw3::dTPerOvflw +
                          (*i)->tsLe * DefsMpw3::dTPerTsLsb +
-                         mOvflwCntOfOvflwCnt * DefsMpw3::dtPerOvflwOfOvfl;
+                         mOvflwCntOfOvflwCnt * DefsMpw3::dtPerOvflwOfOvwfl;
         (*i)->tsGenerated = true;
         /* we only want to generate the TS once. We have to check this as the
-         * current hit, if it is close to the end of the frame, might be merged
-         * with hits from the next frame into 1 event. The TS should be
-         * generated within the frame this hit originally belongs to, so SOF and
-         * EOF ovflwCnt are correct.
+         * current hit, if it is close to the end of the frame, might be
+         * merged with hits from the next frame into 1 event. The TS should be
+         * generated within the frame this hit originally belongs to, so SOF
+         * and EOF ovflwCnt are correct.
          */
       }
 
-      //      auto pix = DefsMpw3::dColIdx2Pix((*i)->dcol, (*i)->pix);
+      auto pix = DefsMpw3::dColIdx2Pix((*i)->dcol, (*i)->pix);
 
       //      std::cout << "timebin matching for " << pix.row << ":" << pix.col
       //                << " sof = " << (*i)->ovflwSOF << " ovflwCnt = " <<
       //                ovflwCnt
+      //                << " ovflOvflw = " << mOvflwCntOfOvflwCnt
       //                << " TS_LE = " << int((*i)->tsLe)
       //                << " => global = " << (*i)->globalTs << "\n"
       //                << std::flush;
@@ -253,18 +279,20 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
       // and TS-C's seem to be growing continuously we'll get it wrong..
       // Don't know if it is even possible to detect this :/ ..
     }
-    //    outSorted.flush();
   }
+#ifdef DEBUG_OUTPUT
+  if (nEvt < 5) {
+    std::ofstream outTs("sorted+ts.csv", std::ios_base::app);
+    outTs << Hit::dbgFileHeader();
 
-  //  std::ofstream outTs("sorted+ts.csv");
-  //  outTs << Hit::dbgFileHeader();
-
-  //  for (int i = 0; i < DefsMpw3::dimSensorCol / 2; i++) {
-  //    for (const auto &h : hitsSortedByDCol[i]) {
-  //      outTs << (*h).toStr();
-  //    }
-  //    outTs.flush();
-  //  }
+    for (int i = 0; i < DefsMpw3::dimSensorCol / 2; i++) {
+      for (const auto &h : hitsSortedByDCol[i]) {
+        outTs << (*h).toStr();
+      }
+      outTs.flush();
+    }
+  }
+#endif
 
   // Now that we assigned the global timestamps we can sort them in
   // ascending order
@@ -272,22 +300,27 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
     return h1.globalTs < h2.globalTs;
   });
 
+#ifdef DEBUG_OUTPUT
   int evtNmb = 0;
-
-  //  if (evtNmb == 0) {
-  //    std::ofstream outTsOrdered("timestamp_ordererd.csv");
-  //    outTsOrdered << Hit::dbgFileHeader();
-  //    for (const auto &hit : in) {
-  //      outTsOrdered << hit.toStr();
-  //    }
-  //    outTsOrdered.flush();
-  //  }
+  if (nEvt < 5) {
+    if (evtNmb == 0) {
+      std::ofstream outTsOrdered("timestamp_ordererd.csv", std::ios_base::app);
+      outTsOrdered << Hit::dbgFileHeader();
+      for (const auto &hit : in) {
+        outTsOrdered << hit.toStr();
+      }
+      outTsOrdered.flush();
+    }
+  }
+#endif
 
   auto endTimewindow = in.begin();
   int initBuffSize = in.size();
   while (in.size() > 0) { // event building based on global TS
     HitBuffer prefab;
+#ifdef DEBUG_OUTPUT
     evtNmb++;
+#endif
     //    std::cout << "operating on buffer size = " << in.size() << "\n";
     for (auto i = in.begin(); i < in.end(); i++) {
 
@@ -311,15 +344,19 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
                 // to remove the last element, begin is inclusive, end is not
 
     finalizePrefab(prefab, out);
-    //    std::ofstream outPrefab("prefab.csv",
-    //                            std::fstream::out | std::fstream::app);
-    //    if (evtNmb == 1) {
-    //      outPrefab << Hit::dbgFileHeader();
-    //    }
-    //    outPrefab << "\n Event #" << evtNmb << "\n";
-    //    for (const auto &hit : prefab) {
-    //      outPrefab << hit.toStr();
-    //    }
+#ifdef DEBUG_OUTPUT
+    if (nEvt < 5) {
+      std::ofstream outPrefab("prefab.csv",
+                              std::fstream::out | std::fstream::app);
+      if (evtNmb == 1) {
+        outPrefab << Hit::dbgFileHeader();
+      }
+      outPrefab << "\n Event #" << evtNmb << "\n";
+      for (const auto &hit : prefab) {
+        outPrefab << hit.toStr();
+      }
+    }
+#endif
 
     if (in.size() < 1.0 / 4.0 * double(initBuffSize) && mDes->HasData()) {
       break; // stop processing buffer at 1/4 initial length, upcoming hits
@@ -328,6 +365,9 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
       // TODO: do better, think more
     }
   }
+#ifdef DEBUG_OUTPUT
+  nEvt++;
+#endif
 }
 
 void Mpw3FileReader::finalizePrefab(const HitBuffer &prefab, EventBuffer &out) {

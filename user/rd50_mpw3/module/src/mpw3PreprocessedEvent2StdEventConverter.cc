@@ -12,9 +12,9 @@ public:
 };
 
 namespace {
-  auto dummy0 = eudaq::Factory<eudaq::StdEventConverter>::Register<
-      Mpw3PreprocessedEvent2StdEventConverter>(
-      Mpw3PreprocessedEvent2StdEventConverter::m_id_factory);
+auto dummy0 = eudaq::Factory<eudaq::StdEventConverter>::Register<
+    Mpw3PreprocessedEvent2StdEventConverter>(
+    Mpw3PreprocessedEvent2StdEventConverter::m_id_factory);
 }
 
 bool Mpw3PreprocessedEvent2StdEventConverter::Converting(
@@ -69,7 +69,9 @@ bool Mpw3PreprocessedEvent2StdEventConverter::Converting(
 
       auto hitPixel = DefsMpw3::dColIdx2Pix(dcol, pix);
       //      std::cout << "word = " << word << " dcol " << dcol << " pix " <<
-      //      pix << " tot " << tot << "\n" << std::flush;
+      //      pix
+      //                << " tot " << tot << "\n"
+      //                << std::flush;
 
       plane.PushPixel(hitPixel.col, hitPixel.row,
                       tot); // store ToT as "raw pixel value"
@@ -77,9 +79,10 @@ bool Mpw3PreprocessedEvent2StdEventConverter::Converting(
     d2->AddPlane(plane);
     planes++;
   }
-  d2->SetTimeBegin(d1->GetTimestampBegin());
-  d2->SetTimeEnd(d1->GetTimestampEnd());
-
+  d2->SetTimeBegin(d1->GetTimestampBegin() *
+                   DefsMpw3::lsbTime); // here we set time in [ps], this is the
+                                       // way Corryvreckan is expecting it
+  d2->SetTimeEnd(d1->GetTimestampEnd() * DefsMpw3::lsbTime);
   if (planes > 0) {
     return true;
   }
