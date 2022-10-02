@@ -150,6 +150,7 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
     hit.ovflwSOF = ovFlwSOF;
     hit.ovflwEOF = ovFlwEOF;
     hit.avgFrameOvflw = double(ovFlwEOF - ovFlwSOF) / 2.0;
+    hit.originFrame = mFrameCnt;
     if (hit.isPiggy) {
       mHBPiggy.push_back(hit);
     } else {
@@ -241,11 +242,13 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
 
       if (!first &&
           (std::abs(int((*i)->tsLe) - int((*(i - 1))->tsLe))) >
-              DefsMpw3::lsbToleranceOvflwDcol) { // we may not check for
-                                                 // overflow in the 1st
+              DefsMpw3::lsbToleranceOvflwDcol &&
+          (*i)->originFrame ==
+              ((*(i - 1))->originFrame)) { // we may not check for
+                                           // overflow in the 1st
         // element, as there will be no *(i - 1) !
         ovflwCnt++; // we detected a higher TS_LE followed by a lower
-                    // one
+                    // one, out of a certain tolerance
                     // => overflow pretty likely
       }
       first = false;
@@ -303,20 +306,23 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
 #ifdef DEBUG_OUTPUT
   int evtNmb = 0;
   if (nEvt < 5) {
-    if (evtNmb == 0) {
-      std::ofstream outTsOrdered("timestamp_ordererd.csv", std::ios_base::app);
-      outTsOrdered << Hit::dbgFileHeader();
-      for (const auto &hit : in) {
-        outTsOrdered << hit.toStr();
-      }
-      outTsOrdered.flush();
+    std::ofstream outTsOrdered("timestamp_orderd.csv", std::ios_base::app);
+    outTsOrdered << Hit::dbgFileHeader();
+    for (const auto &hit : in) {
+      outTsOrdered << hit.toStr();
     }
+    outTsOrdered.flush();
   }
 #endif
 
   auto endTimewindow = in.begin();
   int initBuffSize = in.size();
-  while (in.size() > 0) { // event building based on global TS
+  int processedHitsInBuff = 0;
+  bool bufferGettingEmpty = false;
+
+  while (in.size() > 0 &&
+         !bufferGettingEmpty) { // event building based on global TS
+
     HitBuffer prefab;
 #ifdef DEBUG_OUTPUT
     evtNmb++;
@@ -326,8 +332,19 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
 
       if (i->globalTs - in.begin()->globalTs <=
           DefsMpw3::dTSameEvt) { // do 2 hits belong to the same event?
+
         prefab.push_back(*i);
+        processedHitsInBuff++;
         endTimewindow = i;
+        if (processedHitsInBuff > 3.0 / 4.0 * double(initBuffSize) &&
+            mDes->HasData()) {
+          bufferGettingEmpty = true;
+          break;
+          // stop processing buffer at 1/4 initial length, upcoming hits
+          // may be merged with hits from next frame to an event
+          // 1/4 is a pretty random choice
+          // TODO: do better, think more
+        }
       } else {
         break; // we found all hits belonging to the current event
       }
@@ -345,6 +362,11 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
 
     finalizePrefab(prefab, out);
 #ifdef DEBUG_OUTPUT
+    //        std ::cout << "hits for event #" << evtNmb << ":\n";
+    //        for (auto i = prefab.begin(); i < prefab.end(); i++) {
+    //          std::cout << i->toStr() << "\n";
+    //        }
+
     if (nEvt < 5) {
       std::ofstream outPrefab("prefab.csv",
                               std::fstream::out | std::fstream::app);
@@ -357,14 +379,8 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
       }
     }
 #endif
-
-    if (in.size() < 1.0 / 4.0 * double(initBuffSize) && mDes->HasData()) {
-      break; // stop processing buffer at 1/4 initial length, upcoming hits
-             // may be merged with hits from next frame to an event
-      // 1/4 is a pretty random choice
-      // TODO: do better, think more
-    }
   }
+
 #ifdef DEBUG_OUTPUT
   nEvt++;
 #endif

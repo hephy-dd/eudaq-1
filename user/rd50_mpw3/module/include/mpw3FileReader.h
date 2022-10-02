@@ -22,6 +22,7 @@ private:
     DefsMpw3::ts_t globalTs = 0;
     bool isPiggy;
     bool tsGenerated = false;
+    int originFrame;
 
     std::string inline toStr() const {
       std::stringstream ss;

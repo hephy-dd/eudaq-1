@@ -28,7 +28,7 @@ static constexpr ts_t dTPerOvflw =
     dTPerTsLsb *
     256; // number of LSB per timestamp-overflow (integer from FPGA)
 static constexpr ts_t dTSameEvt =
-    50; // the timewindow in LSB in which multiple hits are considered to
+    0; // the timewindow in LSB in which multiple hits are considered to
        // belong to the same event
 static constexpr ts_t dtPerOvflwOfOvwfl = dTPerOvflw * 256;
 // ovflCnt comes with 8 bit, 1 ovflw ~ 12.8us => 1 ovflw of the ovflw ~ 3.278

@@ -36,7 +36,10 @@ void Mpw3DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
 
 #ifndef PROCESS_PREPROCESSED
 
-  mOut << "\n\n new event TS = " << ev->GetTimestampBegin() << "\n\n";
+  static int evtCnt = 0;
+
+  mOut << "\n\n new event #" << evtCnt++ << " TS = " << ev->GetTimestampBegin()
+       << "\n\n";
 
   auto block = ev->GetBlock(0);
   std::vector<uint32_t> data;
