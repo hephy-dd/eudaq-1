@@ -36,9 +36,11 @@ private:
   std::unique_ptr<std::thread> mEventBuilderThread{};
   std::unique_ptr<std::thread> mTestThread{};
   std::vector<SVD::XLNX_CTRL::BackEndID_t> mBackEndIDs;
+  std::string mXlnxIp;
   eudaq::FileWriterSP mWriter;
-  std::shared_ptr<SVD::XLNX_CTRL::UPDDetails::PayloadBuffer_t> mTestBuffer{};
+  //  std::shared_ptr<SVD::XLNX_CTRL::UPDDetails::PayloadBuffer_t>
+  //  mTestBuffer{};
   std::chrono::high_resolution_clock::time_point mStartTime;
-  std::vector<uint32_t> mTestFrame;
+  //  std::vector<uint32_t> mTestFrame;
 };
 #endif // MPW3_DATACOLLECTOR_H

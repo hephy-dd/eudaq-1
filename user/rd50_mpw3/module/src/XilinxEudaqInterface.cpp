@@ -36,6 +36,7 @@ namespace SVD {
 
             if (size == -1)
               continue;
+
             size = size / sizeof(decltype(data)::value_type);
             if (static_cast<ssize_t>(data.size()) > size) {
               data.erase(data.begin() + size, data.end());
@@ -52,6 +53,19 @@ namespace SVD {
             }
             if (data.empty())
               continue;
+
+            // add system clock timestamp in ms for spill finding later on
+            auto recvTime =
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::high_resolution_clock::now()
+                        .time_since_epoch())
+                    .count();
+            std::cout << "received pack at " << recvTime << " ms; storing "
+                      << (recvTime & 0xFFFFFFFF) << "\n";
+            data.push_back(uint32_t(
+                recvTime &
+                0xFFFFFFFF)); // 32 Bit time precision simply has to be enough!
+
             auto iRet = 0;
             for (; (iRet < m_gRetries) && !m_Buffer->Push(data); ++iRet)
               ;
@@ -108,10 +122,16 @@ namespace SVD {
         auto frame = Payload_t();
         auto fadc = FADCPayload_t();
         auto lastPayload = 0;
+        uint32_t timeStamp;
 
         while (this->IsRunning()) {
           if (this->NextFrame(rBuffer, frame)) {
-            const auto curPayload = PackageID(frame.back());
+            const auto curPayload = PackageID(frame[frame.size() - 2]);
+            // UDP package counter is located at last word of UDP packet, but
+            // receiver adds a timestamp at the end afterwards => -2
+            // FIXME: might be dangerous if frame has size 0 or 1 (which is
+            // technically impossible, check it nontheless!)
+            timeStamp = frame.back();
             if (curPayload != ((++lastPayload) & 0xffffff)) {
               fadc.clear();
               auto ss = std::stringstream();
@@ -137,14 +157,6 @@ namespace SVD {
             auto itEnd = std::find_if(itBegin, std::end(frame) - 1,
                                       &Unpacker::IsTrailer);
 
-            //            std::cout << "frame size = " << std::dec << itEnd -
-            //            itBegin
-            //            << "\n"; for (auto i = itBegin; i <= itEnd; i++) {
-            //              std::cout << std::hex << "0x" << *i << " ";
-            //            }
-            //            std::cout << "\nbegin = " << *itBegin << " end = " <<
-            //            *itEnd
-            //                      << "\n";
             const auto offset = fadc.size();
             const auto isTrailer = Unpacker::IsTrailer(*itEnd);
             fadc.resize(offset + std::distance(itBegin, itEnd + isTrailer));
@@ -152,9 +164,10 @@ namespace SVD {
 
             if (Unpacker::IsMainHeader(fadc.front()) &&
                 Unpacker::IsTrailer(fadc.back())) {
+              fadc.push_back(timeStamp);
               while (!this->PushFADCFrame(fadc) && this->IsRunning())
-                std::this_thread::sleep_for(std::chrono::microseconds(10));
-              fadc.clear();
+                //                std::this_thread::sleep_for(std::chrono::microseconds(10));
+                fadc.clear();
             }
 
             for (itBegin = std::find_if(itEnd, std::end(frame) - 1,
@@ -171,9 +184,10 @@ namespace SVD {
               fadc.resize(std::distance(itBegin, itEnd) + isTrailer);
               std::copy(itBegin, itEnd + isTrailer, std::begin(fadc));
               if (Unpacker::IsTrailer(fadc.back())) {
+                fadc.push_back(timeStamp);
                 while (!this->PushFADCFrame(fadc) && this->IsRunning())
-                  std::this_thread::sleep_for(std::chrono::microseconds(10));
-                fadc.clear();
+                  //                  std::this_thread::sleep_for(std::chrono::microseconds(10));
+                  fadc.clear();
               }
             }
           }
@@ -222,14 +236,14 @@ namespace SVD {
           std::this_thread::sleep_for(std::chrono::microseconds(10));
         rEvent.m_Words += rEvent.m_Data[iFADC].size();
       }
+      rEvent.m_recvTs = rEvent.m_Data.front().back();
+      rEvent.m_Data.front().pop_back(); // removing TS, just annoying afterwards
 
       const auto eventNr = (rEvent.m_Data.front().front() & 0x7fff);
       if (std::any_of(std::begin(rEvent.m_Data), std::end(rEvent.m_Data),
                       [eventNr](const auto &rData) noexcept {
                         return eventNr != (rData.front() & 0x7fff);
                       })) {
-        //        Logger::Log(Logger::Type_t::Fatal, "FADCGbEMerger", "Event
-        //        missmatch");
         m_euLogger->SendLogMessage(
             eudaq::LogMessage("Event missmatch", eudaq::LogMessage::LVL_ERROR));
         auto expected = false;

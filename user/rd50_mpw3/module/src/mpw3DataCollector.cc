@@ -9,9 +9,7 @@ namespace {
 
 Mpw3FastDataCollector::Mpw3FastDataCollector(const std::string &name,
                                              const std::string &rc)
-    : DataCollector(name, rc),
-      mTestBuffer(
-          std::make_shared<SVD::XLNX_CTRL::UPDDetails::PayloadBuffer_t>()) {}
+    : DataCollector(name, rc) {}
 
 void Mpw3FastDataCollector::DoConnect(eudaq::ConnectionSPC idx) {
   std::unique_lock<std::mutex> lk(mMtxMap);
@@ -38,6 +36,7 @@ void Mpw3FastDataCollector::DoConfigure() {
     xlnxBoardId.m_Crate = conf->Get("CRATE_NO", 1);
     mBackEndIDs.clear();
     mBackEndIDs.push_back(xlnxBoardId);
+    mXlnxIp = conf->Get("XILINX_IP", "192.168.201.1");
   }
 }
 
@@ -59,6 +58,10 @@ void Mpw3FastDataCollector::DoStartRun() {
       &Mpw3FastDataCollector::WriteEudaqEventLoop, this);
 
   mStartTime = std::chrono::high_resolution_clock::now();
+
+  // ping Xilinx board to get link up
+  std::string pingCmd = "ping -n 2 " + mXlnxIp;
+  system(pingCmd.c_str());
 }
 
 void Mpw3FastDataCollector::DoStopRun() {
@@ -81,8 +84,6 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
   SVD::XLNX_CTRL::Event_t frame;
   uint32_t nEuEvent = 0;
   uint32_t idleLoops = 0;
-  std::chrono::high_resolution_clock::time_point lastTime =
-      std::chrono::high_resolution_clock::now();
   auto euEvent = eudaq::Event::MakeShared("Mpw3FrameEvent");
 
   while (mEventBuilderRunning->load(std::memory_order_acquire)) {
@@ -90,6 +91,7 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
       // simply put data in event, StandardEventConverter got time to extract
       // triggerNr, pixelHit,...
 
+      euEvent->SetTag("recvTS", frame.m_recvTs);
       for (int i = 0; i < frame.m_Data.size(); i++) {
         if (frame.m_Data[i].size() > 2) {
           euEvent->AddBlock(i, frame.m_Data[i]);

@@ -17,10 +17,11 @@ struct Event_t {
   uint32_t m_CTRL = Defs::VMEData_t{0};    /**< Controller status */
   uint32_t m_Words = Defs::VMEData_t{0};   /**< number of SPY data words */
   uint32_t m_FADC = Defs::VMEData_t{0};    /**< FADC status */
+  uint32_t m_recvTs = 0;
 
   using Data_t = std::vector<Defs::VMEData_t>;
   std::vector<Data_t> m_Data; /**< SPY data container */
 };
 
-} // namespace FADC_CTRL
+} // namespace XLNX_CTRL
 } // namespace SVD
