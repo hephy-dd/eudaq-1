@@ -174,9 +174,10 @@ namespace SVD {
                 Unpacker::IsTrailer(fadc.back())) {
               fadc.push_back(tsMsb);
               fadc.push_back(tsLsb);
-              while (!this->PushFADCFrame(fadc) && this->IsRunning())
+              while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
                 //                std::this_thread::sleep_for(std::chrono::microseconds(10));
-                fadc.clear();
+              }
+              fadc.clear();
             }
 
             for (itBegin = std::find_if(itEnd, std::end(frame) - 1,
@@ -195,9 +196,10 @@ namespace SVD {
               if (Unpacker::IsTrailer(fadc.back())) {
                 fadc.push_back(tsMsb);
                 fadc.push_back(tsLsb);
-                while (!this->PushFADCFrame(fadc) && this->IsRunning())
+                while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
                   //                  std::this_thread::sleep_for(std::chrono::microseconds(10));
-                  fadc.clear();
+                }
+                fadc.clear();
               }
             }
           }
