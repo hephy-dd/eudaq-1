@@ -56,12 +56,11 @@ namespace SVD {
 
             // add system clock timestamp in ms for spill finding later on
             auto recvTime =
-                std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::high_resolution_clock::now()
                         .time_since_epoch())
                     .count();
-            std::cout << "received pack at " << recvTime << " ms; storing "
-                      << (recvTime & 0xFFFFFFFF) << "\n";
+            data.push_back(uint32_t((recvTime >> 32) & 0xFFFFFFFF));
             data.push_back(uint32_t(
                 recvTime &
                 0xFFFFFFFF)); // 32 Bit time precision simply has to be enough!
@@ -122,16 +121,25 @@ namespace SVD {
         auto frame = Payload_t();
         auto fadc = FADCPayload_t();
         auto lastPayload = 0;
-        uint32_t timeStamp;
+        uint32_t tsLsb, tsMsb;
 
         while (this->IsRunning()) {
           if (this->NextFrame(rBuffer, frame)) {
-            const auto curPayload = PackageID(frame[frame.size() - 2]);
+            const auto curPayload = PackageID(frame[frame.size() - 3]);
             // UDP package counter is located at last word of UDP packet, but
-            // receiver adds a timestamp at the end afterwards => -2
+            // receiver adds a 64bit timestamp (2 words) at the end afterwards
+            // => -3
             // FIXME: might be dangerous if frame has size 0 or 1 (which is
             // technically impossible, check it nontheless!)
-            timeStamp = frame.back();
+            tsLsb = frame.back();
+            if (frame.size() >= 2) {
+              tsMsb = *(frame.end() - 2);
+            } else {
+              m_euLogger->SendLogMessage(eudaq::LogMessage(
+                  "frame too small for TS extraction in unpacker",
+                  eudaq::LogMessage::LVL_WARN));
+            }
+
             if (curPayload != ((++lastPayload) & 0xffffff)) {
               fadc.clear();
               auto ss = std::stringstream();
@@ -164,7 +172,8 @@ namespace SVD {
 
             if (Unpacker::IsMainHeader(fadc.front()) &&
                 Unpacker::IsTrailer(fadc.back())) {
-              fadc.push_back(timeStamp);
+              fadc.push_back(tsMsb);
+              fadc.push_back(tsLsb);
               while (!this->PushFADCFrame(fadc) && this->IsRunning())
                 //                std::this_thread::sleep_for(std::chrono::microseconds(10));
                 fadc.clear();
@@ -184,7 +193,8 @@ namespace SVD {
               fadc.resize(std::distance(itBegin, itEnd) + isTrailer);
               std::copy(itBegin, itEnd + isTrailer, std::begin(fadc));
               if (Unpacker::IsTrailer(fadc.back())) {
-                fadc.push_back(timeStamp);
+                fadc.push_back(tsMsb);
+                fadc.push_back(tsLsb);
                 while (!this->PushFADCFrame(fadc) && this->IsRunning())
                   //                  std::this_thread::sleep_for(std::chrono::microseconds(10));
                   fadc.clear();
@@ -237,7 +247,18 @@ namespace SVD {
         rEvent.m_Words += rEvent.m_Data[iFADC].size();
       }
       rEvent.m_recvTs = rEvent.m_Data.front().back();
-      rEvent.m_Data.front().pop_back(); // removing TS, just annoying afterwards
+      if (rEvent.m_Data.front().size() >= 2) {
+        rEvent.m_recvTs |= uint64_t((*(rEvent.m_Data.front().end() - 2))) << 32;
+
+        rEvent.m_Data.front().pop_back();
+        rEvent.m_Data.front().pop_back(); // removing 2 words of 64 bit TS, just
+                                          // annoying afterwards
+      } else {
+        m_euLogger->SendLogMessage(
+            eudaq::LogMessage("frame too small for TS extraction in merger: " +
+                                  std::to_string(rEvent.m_Data.front().size()),
+                              eudaq::LogMessage::LVL_WARN));
+      }
 
       const auto eventNr = (rEvent.m_Data.front().front() & 0x7fff);
       if (std::any_of(std::begin(rEvent.m_Data), std::end(rEvent.m_Data),
