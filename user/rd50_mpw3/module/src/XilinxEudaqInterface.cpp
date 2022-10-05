@@ -134,6 +134,9 @@ namespace SVD {
             tsLsb = frame.back();
             if (frame.size() >= 2) {
               tsMsb = *(frame.end() - 2);
+              frame.pop_back();
+              frame.pop_back();
+
             } else {
               m_euLogger->SendLogMessage(eudaq::LogMessage(
                   "frame too small for TS extraction in unpacker",
