@@ -38,7 +38,7 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
     rawdata.resize(block.size() / sizeWord);
     memcpy(rawdata.data(), block.data(), rawdata.size() * sizeWord);
 
-    eudaq::StandardPlane plane(0, "Frame", "RD50_MPW3");
+    eudaq::StandardPlane plane(0, "Frame", "RD50_MPW3_frame");
     plane.SetSizeZS(DefsMpw3::dimSensorCol, DefsMpw3::dimSensorRow, 0);
 
     for (const auto &word : rawdata) {
@@ -57,7 +57,14 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
       plane.PushPixel(hi.pixIdx.col, hi.pixIdx.row,
                       hi.tot); // store ToT as "raw pixel value"
     }
+    d2->SetDescription("RD50_MPW3_frame");
     d2->AddPlane(plane);
+    uint64_t ts = d1->GetTag("recvTS", 0);
+
+    // for these "rough" events based on frames we simply use the receive
+    // timestamp, which comes in [us], Corry wants [ps]
+    d2->SetTimeBegin(ts * 1e6);
+    d2->SetTimeEnd(ts * 1e6);
   }
   return true;
 }

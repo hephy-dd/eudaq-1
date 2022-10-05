@@ -83,7 +83,6 @@ void Mpw3FastDataCollector::DoReceive(eudaq::ConnectionSPC idx,
 void Mpw3FastDataCollector::WriteEudaqEventLoop() {
   SVD::XLNX_CTRL::Event_t frame;
   uint32_t nEuEvent = 0;
-  uint32_t idleLoops = 0;
   auto euEvent = eudaq::Event::MakeShared("Mpw3FrameEvent");
 
   while (mEventBuilderRunning->load(std::memory_order_acquire)) {
@@ -104,7 +103,6 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
         // assigned to this merger
       }
     } else {
-      idleLoops++;
       continue;
     }
   }
