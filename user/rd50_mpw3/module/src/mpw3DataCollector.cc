@@ -50,6 +50,8 @@ void Mpw3FastDataCollector::DoReset() {
 
 void Mpw3FastDataCollector::DoStartRun() {
 
+  const int maxPingRetries = 5;
+
   mEventMerger = std::make_unique<SVD::XLNX_CTRL::FADCGbEMerger>(
       mBackEndIDs, eudaq::GetLogger());
 
@@ -60,8 +62,21 @@ void Mpw3FastDataCollector::DoStartRun() {
   mStartTime = std::chrono::high_resolution_clock::now();
 
   // ping Xilinx board to get link up
-  std::string pingCmd = "ping -n 2 " + mXlnxIp;
-  system(pingCmd.c_str());
+  std::string pingCmd = "ping -c 1 " + mXlnxIp;
+
+  bool pingSuccess = false;
+
+  for (int i = 0; i < maxPingRetries; i++) {
+    if (system(pingCmd.c_str()) != 0) {
+      EUDAQ_DEBUG("ping failed");
+    } else {
+      pingSuccess = true;
+      break;
+    }
+  }
+  if (!pingSuccess) {
+    EUDAQ_WARN("ping of XILINX board with IP " + mXlnxIp + " failed");
+  }
 }
 
 void Mpw3FastDataCollector::DoStopRun() {
@@ -94,8 +109,11 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
       for (int i = 0; i < frame.m_Data.size(); i++) {
         if (frame.m_Data[i].size() > 2) {
           euEvent->AddBlock(i, frame.m_Data[i]);
+          euEvent->SetTag("frameNmb", nEuEvent);
           euEvent->SetEventN(frame.m_EventNr);
           WriteEvent(euEvent);
+          std::cout << " writing event " << nEuEvent << "\n";
+          nEuEvent++;
         } else {
           EUDAQ_WARN("too small frame size <= 2");
         }

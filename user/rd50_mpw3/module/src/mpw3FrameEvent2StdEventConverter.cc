@@ -59,12 +59,24 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
     }
     d2->SetDescription("RD50_MPW3_frame");
     d2->AddPlane(plane);
-    uint64_t ts = d1->GetTag("recvTS", 0);
+
+    uint32_t frameNmb = d1->GetTag("frameNmb", 0);
 
     // for these "rough" events based on frames we simply use the receive
     // timestamp, which comes in [us], Corry wants [ps]
-    d2->SetTimeBegin(ts * 1e6);
-    d2->SetTimeEnd(ts * 1e6);
+    //    uint64_t ts = d1->GetTag("recvTS", 0);
+    //    d2->SetTimeBegin(ts * 1e6);
+    //    d2->SetTimeEnd(ts * 1e6);
+
+    d2->SetTimeBegin(0);
+    d2->SetTimeEnd(0);
+    d2->SetTriggerN(
+        frameNmb); // associate frame nmb with a trigger number
+                   // this way we can load frame-events into Corry and match
+                   // those with events from the TLU not suited for actual
+                   // analysis, but good for debugging. These frame-events
+                   // anyway need preprocessing (timestamp generation) before
+                   // proper analysis can be performed
   }
   return true;
 }
