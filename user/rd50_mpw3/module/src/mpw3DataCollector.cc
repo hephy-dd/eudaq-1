@@ -112,7 +112,6 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
           euEvent->SetTag("frameNmb", nEuEvent);
           euEvent->SetEventN(frame.m_EventNr);
           WriteEvent(euEvent);
-          std::cout << " writing event " << nEuEvent << "\n";
           nEuEvent++;
         } else {
           EUDAQ_WARN("too small frame size <= 2");
