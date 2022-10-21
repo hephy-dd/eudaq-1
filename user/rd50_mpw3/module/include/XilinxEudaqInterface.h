@@ -36,7 +36,7 @@ namespace SVD {
       class Receiver {
       private:
         static constexpr auto m_gRetries = 100;
-        static constexpr auto m_gMaxPackageSize = 8198;
+        static constexpr auto m_gMaxPackageSize = 8500;
         static constexpr auto m_gName = "UDPReceiver";
         static constexpr auto m_gTimeout = 2500000;
 

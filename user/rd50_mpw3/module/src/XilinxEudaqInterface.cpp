@@ -38,6 +38,7 @@ namespace SVD {
               continue;
 
             size = size / sizeof(decltype(data)::value_type);
+
             if (static_cast<ssize_t>(data.size()) > size) {
               data.erase(data.begin() + size, data.end());
             } else {
@@ -53,17 +54,6 @@ namespace SVD {
             }
             if (data.empty())
               continue;
-
-            // add system clock timestamp in ms for spill finding later on
-            auto recvTime =
-                std::chrono::duration_cast<std::chrono::microseconds>(
-                    std::chrono::high_resolution_clock::now()
-                        .time_since_epoch())
-                    .count();
-            data.push_back(uint32_t((recvTime >> 32) & 0xFFFFFFFF));
-            data.push_back(uint32_t(
-                recvTime &
-                0xFFFFFFFF)); // 32 Bit time precision simply has to be enough!
 
             auto iRet = 0;
             for (; (iRet < m_gRetries) && !m_Buffer->Push(data); ++iRet)
@@ -121,34 +111,20 @@ namespace SVD {
         auto frame = Payload_t();
         auto fadc = FADCPayload_t();
         auto lastPayload = 0;
-        uint32_t tsLsb, tsMsb;
+        uint32_t fw64BitOvflwMsb, fw64BitOvflwLsb;
 
         while (this->IsRunning()) {
           if (this->NextFrame(rBuffer, frame)) {
-            const auto curPayload = PackageID(frame[frame.size() - 3]);
-            // UDP package counter is located at last word of UDP packet, but
-            // receiver adds a 64bit timestamp (2 words) at the end afterwards
-            // => -3
-            // FIXME: might be dangerous if frame has size 0 or 1 (which is
-            // technically impossible, check it nontheless!)
-            tsLsb = frame.back();
-            if (frame.size() >= 2) {
-              tsMsb = *(frame.end() - 2);
-              frame.pop_back();
-              frame.pop_back();
+            const auto curPayload = PackageID(frame.back());
+            // UDP package counter is located at last word of UDP packet, than there is a 
+            // 64 bit ovflw counter based on 50 ns added by the FPGA
 
-            } else {
-              m_euLogger->SendLogMessage(eudaq::LogMessage(
-                  "frame too small for TS extraction in unpacker",
-                  eudaq::LogMessage::LVL_WARN));
-            }
 
             if (curPayload != ((++lastPayload) & 0xffffff)) {
               fadc.clear();
               auto ss = std::stringstream();
               ss << "Expected package number " << (lastPayload & 0xffffff)
-                 << ", got: " << curPayload << '!'
-                 << " word = " << frame.back();
+                 << ", got: " << curPayload << '!';
               m_euLogger->SendLogMessage(
                   eudaq::LogMessage(ss.str(), eudaq::LogMessage::LVL_WARN));
               lastPayload = curPayload;
@@ -157,6 +133,13 @@ namespace SVD {
           } else {
             continue;
           }
+
+            frame.pop_back();
+            fw64BitOvflwMsb = frame.back();
+            frame.pop_back();
+            fw64BitOvflwLsb = frame.back();
+            frame.pop_back();
+            uint64_t fw64BitOvflwFull = (uint64_t(fw64BitOvflwMsb) << uint64_t(32)) + uint64_t(fw64BitOvflwLsb);
           //          std::cout << " next frame size = " << frame.size() <<
           //          "\n";
           auto itBegin = fadc.empty()
@@ -175,8 +158,8 @@ namespace SVD {
 
             if (Unpacker::IsMainHeader(fadc.front()) &&
                 Unpacker::IsTrailer(fadc.back())) {
-              fadc.push_back(tsMsb);
-              fadc.push_back(tsLsb);
+              fadc.push_back(fw64BitOvflwMsb);
+              fadc.push_back(fw64BitOvflwLsb);
               while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
                 //                std::this_thread::sleep_for(std::chrono::microseconds(10));
               }
@@ -197,8 +180,8 @@ namespace SVD {
               fadc.resize(std::distance(itBegin, itEnd) + isTrailer);
               std::copy(itBegin, itEnd + isTrailer, std::begin(fadc));
               if (Unpacker::IsTrailer(fadc.back())) {
-                fadc.push_back(tsMsb);
-                fadc.push_back(tsLsb);
+                fadc.push_back(fw64BitOvflwMsb);
+                fadc.push_back(fw64BitOvflwLsb);
                 while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
                   //                  std::this_thread::sleep_for(std::chrono::microseconds(10));
                 }
