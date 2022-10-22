@@ -51,9 +51,16 @@ namespace SVD {
                 m_euLogger->SendLogMessage(
                     eudaq::LogMessage(ss.str(), eudaq::LogMessage::LVL_WARN));
               }
-            }
+            }            
             if (data.empty())
               continue;
+
+            using namespace std::chrono;
+            auto now = duration_cast<microseconds>(high_resolution_clock::now().time_since_epoch()).count();
+            uint32_t nowMsb = uint32_t(now >> 32);
+            uint32_t nowLsb = now & 0xffffffff;
+            data.push_back(nowMsb);
+            data.push_back(nowLsb);
 
             auto iRet = 0;
             for (; (iRet < m_gRetries) && !m_Buffer->Push(data); ++iRet)
@@ -111,10 +118,15 @@ namespace SVD {
         auto frame = Payload_t();
         auto fadc = FADCPayload_t();
         auto lastPayload = 0;
-        uint32_t fw64BitOvflwMsb, fw64BitOvflwLsb;
+        uint32_t fw64BitTsMsb, fw64BitTsLsb, cpuTsLsb, cpuTsMsb;
 
         while (this->IsRunning()) {
           if (this->NextFrame(rBuffer, frame)) {
+            cpuTsLsb = frame.back();
+            frame.pop_back();
+            cpuTsMsb = frame.back();
+            frame.pop_back();
+            uint64_t cpuTs64Bit = uint64_t(cpuTsLsb) + (uint64_t(cpuTsMsb) << uint64_t(32));
             const auto curPayload = PackageID(frame.back());
             // UDP package counter is located at last word of UDP packet, than there is a 
             // 64 bit ovflw counter based on 50 ns added by the FPGA
@@ -135,11 +147,11 @@ namespace SVD {
           }
 
             frame.pop_back();
-            fw64BitOvflwMsb = frame.back();
+            fw64BitTsMsb = frame.back();
             frame.pop_back();
-            fw64BitOvflwLsb = frame.back();
+            fw64BitTsLsb = frame.back();
             frame.pop_back();
-            uint64_t fw64BitOvflwFull = (uint64_t(fw64BitOvflwMsb) << uint64_t(32)) + uint64_t(fw64BitOvflwLsb);
+            uint64_t fw64BitOvflwFull = (uint64_t(fw64BitTsMsb) << uint64_t(32)) + uint64_t(fw64BitTsLsb);
           //          std::cout << " next frame size = " << frame.size() <<
           //          "\n";
           auto itBegin = fadc.empty()
@@ -158,8 +170,10 @@ namespace SVD {
 
             if (Unpacker::IsMainHeader(fadc.front()) &&
                 Unpacker::IsTrailer(fadc.back())) {
-              fadc.push_back(fw64BitOvflwMsb);
-              fadc.push_back(fw64BitOvflwLsb);
+              fadc.push_back(fw64BitTsMsb);
+              fadc.push_back(fw64BitTsLsb);
+              fadc.push_back(cpuTsMsb);
+              fadc.push_back(cpuTsLsb);
               while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
                 //                std::this_thread::sleep_for(std::chrono::microseconds(10));
               }
@@ -180,8 +194,11 @@ namespace SVD {
               fadc.resize(std::distance(itBegin, itEnd) + isTrailer);
               std::copy(itBegin, itEnd + isTrailer, std::begin(fadc));
               if (Unpacker::IsTrailer(fadc.back())) {
-                fadc.push_back(fw64BitOvflwMsb);
-                fadc.push_back(fw64BitOvflwLsb);
+                fadc.push_back(fw64BitTsMsb);
+                fadc.push_back(fw64BitTsLsb);
+                fadc.push_back(cpuTsMsb);
+                fadc.push_back(cpuTsLsb);
+                std::cout << "unpacker set stuff to " << fw64BitTsMsb << " " << fw64BitTsLsb << "; " << cpuTsMsb << " " << cpuTsLsb << "\n";
                 while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
                   //                  std::this_thread::sleep_for(std::chrono::microseconds(10));
                 }
@@ -233,14 +250,16 @@ namespace SVD {
         while (!m_Unpackers[iFADC].PopFADCPayload(rEvent.m_Data[iFADC]))
           std::this_thread::sleep_for(std::chrono::microseconds(10));
         rEvent.m_Words += rEvent.m_Data[iFADC].size();
-      }
-      rEvent.m_recvTs = rEvent.m_Data.front().back();
-      if (rEvent.m_Data.front().size() >= 2) {
-        rEvent.m_recvTs |= uint64_t((*(rEvent.m_Data.front().end() - 2))) << 32;
-
+      }      
+      if (rEvent.m_Data.front().size() >= 4) {
+        rEvent.m_recvTsCpu = rEvent.m_Data.front().back();
         rEvent.m_Data.front().pop_back();
-        rEvent.m_Data.front().pop_back(); // removing 2 words of 64 bit TS, just
-                                          // annoying afterwards
+        rEvent.m_recvTsCpu |= uint64_t(rEvent.m_Data.front().back()) << 32;
+        rEvent.m_Data.front().pop_back();
+        rEvent.m_recvTsFw = rEvent.m_Data.front().back();
+        rEvent.m_Data.front().pop_back();
+        rEvent.m_recvTsFw |= uint64_t(rEvent.m_Data.front().back()) << 32;
+        rEvent.m_Data.front().pop_back();
       } else {
         m_euLogger->SendLogMessage(
             eudaq::LogMessage("frame too small for TS extraction in merger: " +

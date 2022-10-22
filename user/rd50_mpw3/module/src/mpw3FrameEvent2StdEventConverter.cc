@@ -52,7 +52,7 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
       DefsMpw3::HitInfo hi(word);
       if (hi.sof || hi.eof) {
         // we do not care about SOF and EOF here
-        continue;
+        continue;        
       }
       plane.PushPixel(hi.pixIdx.col, hi.pixIdx.row,
                       hi.tot); // store ToT as "raw pixel value"
@@ -68,8 +68,12 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
     //    d2->SetTimeBegin(ts * 1e6);
     //    d2->SetTimeEnd(ts * 1e6);
 
-    d2->SetTimeBegin(0);
-    d2->SetTimeEnd(0);
+
+    auto cpuTs = d1->GetTag("recvTS_CPU");
+    uint64_t cpuTsInt = std::stoul(cpuTs) * 1e6;
+    
+    d2->SetTimeBegin(cpuTsInt);
+    d2->SetTimeEnd(cpuTsInt);
     d2->SetTriggerN(
         frameNmb); // associate frame nmb with a trigger number
                    // this way we can load frame-events into Corry and match
