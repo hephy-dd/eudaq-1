@@ -60,7 +60,6 @@ private:
   uint64_t mEventCnt = 0, mFrameCnt = 0;
   std::chrono::high_resolution_clock::duration mTimeForEvent, mTimeForFrame;
   std::chrono::high_resolution_clock::time_point mStartTime;
-  uint32_t mOldOvflwCnt = 0, mOvflwCntOfOvflwCnt = 0;
 };
 #define MPW3FILEREADER_H
 

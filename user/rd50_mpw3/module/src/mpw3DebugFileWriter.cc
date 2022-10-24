@@ -3,7 +3,7 @@
 #include "eudaq/FileWriter.hh"
 #include "eudaq/StdEventConverter.hh"
 
-//#define PROCESS_PREPROCESSED
+#define PROCESS_PREPROCESSED
 
 class Mpw3DbgFileWriter : public eudaq::FileWriter {
 public:
@@ -38,8 +38,9 @@ void Mpw3DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
 
   static int evtCnt = 0;
 
-  mOut << "\n\n new event #" << evtCnt++ << " received @ FW-TS = "
-       << ev->GetTag("recvTS_FW") <<  " CPU TS = " << ev->GetTag("recvTS_CPU") << "\n\n";
+  mOut << "\n\n new event #" << evtCnt++
+       << " received @ FW-TS = " << ev->GetTag("recvTS_FW")
+       << " CPU TS = " << ev->GetTag("recvTS_CPU") << "\n\n";
 
   auto block = ev->GetBlock(0);
   std::vector<uint32_t> data;
