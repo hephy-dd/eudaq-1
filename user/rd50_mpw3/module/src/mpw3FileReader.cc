@@ -38,39 +38,42 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
         mDes->PreRead(id);
         ev = eudaq::Factory<eudaq::Event>::Create<eudaq::Deserializer &>(id,
                                                                          *mDes);
-      } else {
-        auto tConversion =
-            std::chrono::high_resolution_clock::now() - mStartTime;
-        std::cout << "\n finished " << mFrameCnt << " frames and " << mEventCnt
-                  << " events in " << double(tConversion.count()) * 1e-9
-                  << "[s]\n";
-        std::cout << "This corresponds to a speed of "
-                  << double(tConversion.count()) / double(mFrameCnt) * 1e-6
-                  << "[ms] per frame and "
-                  << double(tConversion.count()) / double(mEventCnt) * 1e-6
-                  << "[ms] per event\n";
-        return nullptr; // no more data left, we finished whole file
+        auto currUdpTs = std::stoll(ev->GetTag("recvTS_FW", "-1"));
+
+        while (true) {
+          if (mDes->HasData()) {
+            uint32_t id;
+            mDes->PreRead(id);
+            ev = eudaq::Factory<eudaq::Event>::Create<eudaq::Deserializer &>(
+                id, *mDes);
+            auto udpTs = std::stoll(ev->GetTag("recvTS_FW", "-1"));
+            // FIXME first event of new UDP pack get's thrown away
+            // We aim to parse all frames within an UDP pack at first
+            if (!processFrame(ev)) {
+              EUDAQ_WARN("Error processing frame; skipping this one");
+              continue;
+            }
+            if (udpTs != currUdpTs) {
+              // current UDP pack apperently is finished
+              break;
+            }
+          } else {
+            break;
+          }
+        }
       }
 
-      if (processFrame(ev)) {
-        break; // processed frame successful, therefore we should continue
-               // preparing and returning events before processing next one
-      } else {
-        EUDAQ_WARN("Error processing frame; skipping this one");
-        continue;
+      if (mHBBase.size() == 0 && mHBPiggy.size() == 0) {
+        EUDAQ_ERROR("Buffer after frame processing empty, probably a bug");
+        return nullptr; // we should never get here, just to be save
       }
-    }
 
-    if (mHBBase.size() == 0 && mHBPiggy.size() == 0) {
-      EUDAQ_ERROR("Buffer after frame processing empty, probably a bug");
-      return nullptr; // we should never get here, just to be save
-    }
+      buildEvent(mHBBase, mEventBuffBase);
+      buildEvent(mHBPiggy, mEventBuffPiggy);
 
-    buildEvent(mHBBase, mEventBuffBase);
-    buildEvent(mHBPiggy, mEventBuffPiggy);
-
-    if (eventRdy(retval)) {
-      return std::move(retval);
+      if (eventRdy(retval)) {
+        return std::move(retval);
+      }
     }
 
   } else {
@@ -81,12 +84,22 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
 
 bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
 
+  static long long prevUdpTs = -1;
+
   static auto lastT = std::chrono::high_resolution_clock::now();
   std::cout << "\rprocessing Frame #" << mFrameCnt << " Event #" << mEventCnt
             << std::flush;
 
   if (frame == nullptr) {
     EUDAQ_DEBUG("frame to process == nullptr");
+    return false;
+  }
+
+  auto udpTs = std::stoll(frame->GetTag("recvTS_FW", "-1"));
+  std::cout << "frame from UDP TS: " << udpTs << "\n";
+
+  if (udpTs < 0) {
+    EUDAQ_WARN("no valid UDP TS in the frame");
     return false;
   }
 
@@ -142,6 +155,7 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
     const auto word = *i;
     DefsMpw3::HitInfo hi(word);
     Hit hit;
+    hit.udpTs = udpTs;
     hit.dcol = hi.dcol;
     hit.pix = hi.pix;
     hit.tsLe = hi.tsLe;
@@ -151,6 +165,7 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
     hit.ovflwEOF = ovFlwEOF;
     hit.avgFrameOvflw = double(ovFlwEOF - ovFlwSOF) / 2.0;
     hit.originFrame = mFrameCnt;
+    hit.pixIdx = hi.pixIdx;
     if (hit.isPiggy) {
       mHBPiggy.push_back(hit);
     } else {
@@ -167,135 +182,30 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
 
 void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
 
-#ifdef DEBUG_OUTPUT
-  static int nEvt = 0;
-#endif
-  if (in.size() == 0) {
-    return;
-  }
+  const auto &previousHit = in.front();
 
-#ifdef DEBUG_OUTPUT
-  if (nEvt < 5) {
-    std::ofstream outUnsorted("unsorted.csv", std::ios_base::app);
-    outUnsorted << Hit::dbgFileHeader();
-    for (const auto &hit : in) {
-      outUnsorted << hit.toStr();
-    }
-    outUnsorted.flush();
-  }
-#endif
+  int nOvflwOfOvflw = 0;
+  int evtNmb = 0;
 
-  /*
-   * Event-Building + Time-Bin-Matching upcoming..
-   *
-   * 1) We extract hits sorted in double columns from current buffer
-   * 2) We check for overflows in the specific double columns.
-   *    This has to be done as we cannot rely on the ovflwCnt from the
-   *    SOF for the whole frame
-   * 3) Calculate global timestamps by considering detected ovflwCnt,
-   *    SOF ovflwCnt and TS_LE
-   * 4) Sort buffer in terms of global timestamps
-   * 5) Merge hits with similar timestamps to events
-   */
-
-  auto tStartEvtProcess = std::chrono::high_resolution_clock::now();
-
-  std::vector<std::vector<Hit>::iterator>
-      hitsSortedByDCol[DefsMpw3::dimSensorCol / 2];
-  for (int dcol = 0; dcol < DefsMpw3::dimSensorCol / 2; dcol++) {
-    for (auto i = in.begin(); i < in.end(); ++i) {
-      if (i->dcol == dcol) {
-        hitsSortedByDCol[dcol].push_back(
-            i); // we need to keep the hit order of the original frame
-                // to detect overflows
-      }
+  for (const auto &hit : in) {
+    if (hit.udpTs < previousHit.udpTs) {
+      nOvflwOfOvflw++; // counting the number of overflows of the SOF ovflw
+                       // counter inside one UDP package
     }
   }
-#ifdef DEBUG_OUTPUT
-  if (nEvt < 5) {
-    std::ofstream outSorted("sorted.csv", std::ios_base::app);
-    outSorted << Hit::dbgFileHeader();
-    for (int dcol = 0; dcol < DefsMpw3::dimSensorCol / 2; dcol++) {
-      const auto &currDCol = hitsSortedByDCol[dcol];
-      DefsMpw3::ts_t ovflwCnt = 0;
-      bool first = true;
-      for (auto i = currDCol.begin(); i < currDCol.end();
-           i++) // i is an iterator pointing to an iterator, quite some
-      // dereferencing to do...
-      {
-        outSorted << (*i)->toStr();
-        outSorted.flush();
-      }
+  auto oldOvflw = in.end()->ovflwSOF;
+  for (auto i = in.rbegin(); i < in.rend(); i++) {
+    if (oldOvflw < i->ovflwSOF) {
+      nOvflwOfOvflw--;
     }
+    i->globalTs = i->udpTs >> 16;
+    i->globalTs = i->globalTs << 16; // deleted lower 16 bit of UDP timestamp
+    DefsMpw3::ts_t totalOvflws = i->ovflwSOF + nOvflwOfOvflw * 256;
+    i->globalTs +=
+        totalOvflws * DefsMpw3::dTPerOvflw + i->tsLe * DefsMpw3::dTPerTsLsb;
+    std::cout << "set global ts to " << i->globalTs << "for pix "
+              << i->pixIdx.row << ":" << i->pixIdx.col << "\n";
   }
-#endif
-
-  for (int dcol = 0; dcol < DefsMpw3::dimSensorCol / 2; dcol++) {
-    const auto &currDCol = hitsSortedByDCol[dcol];
-    DefsMpw3::ts_t ovflwCnt = 0;
-    bool first = true;
-
-    for (auto i = currDCol.begin(); i < currDCol.end();
-         i++) // i is an iterator pointing to an iterator, quite some
-    // dereferencing to do...
-    {
-
-      if (!first &&
-          (std::abs(int((*i)->tsLe) - int((*(i - 1))->tsLe))) >
-              DefsMpw3::lsbToleranceOvflwDcol &&
-          (*i)->originFrame ==
-              ((*(i - 1))->originFrame)) { // we may not check for
-                                           // overflow in the 1st
-        // element, as there will be no *(i - 1) !
-        ovflwCnt++; // we detected a higher TS_LE followed by a lower
-                    // one, out of a certain tolerance
-                    // => overflow pretty likely
-      }
-      first = false;
-
-      if (!(*i)->tsGenerated) {
-        // this is the ominous time-bin-matching, the whole reason for
-        // this class btw...
-        (*i)->globalTs = (ovflwCnt + (*i)->ovflwSOF) * DefsMpw3::dTPerOvflw +
-                         (*i)->tsLe * DefsMpw3::dTPerTsLsb +
-                         mOvflwCntOfOvflwCnt * DefsMpw3::dtPerOvflwOfOvwfl;
-        (*i)->tsGenerated = true;
-        /* we only want to generate the TS once. We have to check this as the
-         * current hit, if it is close to the end of the frame, might be
-         * merged with hits from the next frame into 1 event. The TS should be
-         * generated within the frame this hit originally belongs to, so SOF
-         * and EOF ovflwCnt are correct.
-         */
-      }
-
-      auto pix = DefsMpw3::dColIdx2Pix((*i)->dcol, (*i)->pix);
-
-      //      std::cout << "timebin matching for " << pix.row << ":" << pix.col
-      //                << " sof = " << (*i)->ovflwSOF << " ovflwCnt = " <<
-      //                ovflwCnt
-      //                << " ovflOvflw = " << mOvflwCntOfOvflwCnt
-      //                << " TS_LE = " << int((*i)->tsLe)
-      //                << " => global = " << (*i)->globalTs << "\n"
-      //                << std::flush;
-
-      // FIXME: if a whole timebin is without any hits in a certain dcol
-      // and TS-C's seem to be growing continuously we'll get it wrong..
-      // Don't know if it is even possible to detect this :/ ..
-    }
-  }
-#ifdef DEBUG_OUTPUT
-  if (nEvt < 5) {
-    std::ofstream outTs("sorted+ts.csv", std::ios_base::app);
-    outTs << Hit::dbgFileHeader();
-
-    for (int i = 0; i < DefsMpw3::dimSensorCol / 2; i++) {
-      for (const auto &h : hitsSortedByDCol[i]) {
-        outTs << (*h).toStr();
-      }
-      outTs.flush();
-    }
-  }
-#endif
 
   // Now that we assigned the global timestamps we can sort them in
   // ascending order
@@ -303,56 +213,27 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
     return h1.globalTs < h2.globalTs;
   });
 
-#ifdef DEBUG_OUTPUT
-  int evtNmb = 0;
-  if (nEvt < 5) {
-    std::ofstream outTsOrdered("timestamp_orderd.csv", std::ios_base::app);
-    outTsOrdered << Hit::dbgFileHeader();
-    for (const auto &hit : in) {
-      outTsOrdered << hit.toStr();
-    }
-    outTsOrdered.flush();
-  }
-#endif
-
   auto endTimewindow = in.begin();
-  int initBuffSize = in.size();
-  int processedHitsInBuff = 0;
-  bool bufferGettingEmpty = false;
 
-  while (in.size() > 0 &&
-         !bufferGettingEmpty) { // event building based on global TS
+  while (in.size() > 0) { // event building based on global TS
 
     HitBuffer prefab;
-#ifdef DEBUG_OUTPUT
-    evtNmb++;
-#endif
-    //    std::cout << "operating on buffer size = " << in.size() << "\n";
     for (auto i = in.begin(); i < in.end(); i++) {
 
       if (i->globalTs - in.begin()->globalTs <=
           DefsMpw3::dTSameEvt) { // do 2 hits belong to the same event?
 
         prefab.push_back(*i);
-        processedHitsInBuff++;
         endTimewindow = i;
-        if (processedHitsInBuff > 3.0 / 4.0 * double(initBuffSize) &&
-            mDes->HasData()) {
-          bufferGettingEmpty = true;
-          break;
-          // stop processing buffer at 1/4 initial length, upcoming hits
-          // may be merged with hits from next frame to an event
-          // 1/4 is a pretty random choice
-          // TODO: do better, think more
-        }
       } else {
         break; // we found all hits belonging to the current event
       }
     }
-    //    std ::cout << "hits for event #" << evtNmb << ":\n";
-    //    for (auto i = prefab.begin(); i < prefab.end(); i++) {
-    //      std::cout << i->toStr() << "\n";
-    //    }
+    std ::cout << "hits for event #" << evtNmb++ << ":\n"
+               << Hit::dbgFileHeader();
+    for (auto i = prefab.begin(); i < prefab.end(); i++) {
+      std::cout << i->toStr() << "\n";
+    }
 
     in.erase(
         in.begin(),
@@ -361,29 +242,7 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
                 // to remove the last element, begin is inclusive, end is not
 
     finalizePrefab(prefab, out);
-#ifdef DEBUG_OUTPUT
-    //        std ::cout << "hits for event #" << evtNmb << ":\n";
-    //        for (auto i = prefab.begin(); i < prefab.end(); i++) {
-    //          std::cout << i->toStr() << "\n";
-    //        }
-
-    if (nEvt < 5) {
-      std::ofstream outPrefab("prefab.csv",
-                              std::fstream::out | std::fstream::app);
-      if (evtNmb == 1) {
-        outPrefab << Hit::dbgFileHeader();
-      }
-      outPrefab << "\n Event #" << evtNmb << "\n";
-      for (const auto &hit : prefab) {
-        outPrefab << hit.toStr();
-      }
-    }
-#endif
   }
-
-#ifdef DEBUG_OUTPUT
-  nEvt++;
-#endif
 }
 
 void Mpw3FileReader::finalizePrefab(const HitBuffer &prefab, EventBuffer &out) {

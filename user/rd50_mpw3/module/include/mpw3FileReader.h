@@ -23,6 +23,8 @@ private:
     bool isPiggy;
     bool tsGenerated = false;
     int originFrame;
+    int64_t udpTs;
+    DefsMpw3::PixelIndex pixIdx;
 
     std::string inline toStr() const {
       std::stringstream ss;
@@ -31,11 +33,12 @@ private:
          << std::setw(3) << int(pix) << ";  " << std::setw(2) << idx.row << ":"
          << std::setw(2) << idx.col << ";   " << std::setw(3) << int(tsLe)
          << ";   " << std::setw(3) << int(tsTe) << ";   " << std::setw(6)
-         << globalTs << ";   " << std::setw(5) << ovflwSOF << "\n";
+         << globalTs << ";   " << std::setw(5) << ovflwSOF << "; " << udpTs
+         << "\n";
       return std::move(ss.str());
     }
     const static std::string inline dbgFileHeader() {
-      return "#DCol;Pix;ROW:COL;TS_LE; TS_TE; TS-glob; OvflwSOF\n";
+      return "#DCol;Pix;ROW:COL;TS_LE; TS_TE; TS-glob; OvflwSOF; FW TS\n";
     }
   };
   using HitBuffer = std::vector<Hit>;

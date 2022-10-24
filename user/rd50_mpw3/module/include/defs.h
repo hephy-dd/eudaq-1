@@ -22,8 +22,8 @@ static constexpr std::size_t dimSensorRow = 64;
 static constexpr ts_t lsbTime =
     50000; // number of picoseconds 1 LSB timestamp accounts for
 static constexpr ts_t dTPerTsLsb =
-    1; // we want to stay in LSB at this stage, could be used to perform
-       // calculation in actual time units
+    lsbTime; // we want to stay in LSB at this stage, could be used to perform
+             // calculation in actual time units
 static constexpr ts_t dTPerOvflw =
     dTPerTsLsb *
     256; // number of LSB per timestamp-overflow (integer from FPGA)
