@@ -52,6 +52,7 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
           // current TS must be beneath 30s and smaller than the TS of the uDP
           // pack before to qualify for T0. 30s is a bit of a random choice, but
           // should be sufficient to find T0 within CERN SPS spill-structure
+          mT0 = currUdpTs;
           std::cout << "T0 = " << currUdpTs << " = " << currUdpTs * 50e-9
                     << "s; skipped " << skipCnt << " frames before\n";
           break;
@@ -243,7 +244,13 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
     //    oldOvflw = i->ovflwSOF;
 
     // TODO: account for ovflws of the SOF ovflw-counter
-    i->globalTs = i->udpTs >> 16;
+    if (i->udpTs < mT0) {
+      std::stringstream ss;
+      ss << "curr UDP TS " << i->udpTs << " < T0 " << mT0;
+
+      EUDAQ_WARN(ss.str());
+    }
+    i->globalTs = (i->udpTs - mT0) >> 16;
     i->globalTs = (i->globalTs << 16) *
                   DefsMpw3::dTPerTsLsb; // deleted lower 16 bit of UDP timestamp
     DefsMpw3::ts_t totalOvflws = i->ovflwSOF + nOvflwOfOvflw * 256;
