@@ -58,7 +58,6 @@ private:
   std::vector<Hit> mHBBase, mHBPiggy;
 
   uint64_t mEventCnt = 0, mFrameCnt = 0;
-  DefsMpw3::ts_t mT0;
   std::chrono::high_resolution_clock::duration mTimeForEvent, mTimeForFrame;
   std::chrono::high_resolution_clock::time_point mStartTime;
 };

@@ -72,6 +72,10 @@ bool Mpw3PreprocessedEvent2StdEventConverter::Converting(
       //      pix
       //                << " tot " << tot << "\n"
       //                << std::flush;
+      if (hitPixel.row == 0) {
+        std::cout << " hit pixel " << hitPixel.row << ":" << hitPixel.col
+                  << " because of " << word << "\n";
+      }
 
       plane.PushPixel(hitPixel.col, hitPixel.row,
                       tot); // store ToT as "raw pixel value"

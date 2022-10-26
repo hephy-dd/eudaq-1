@@ -28,43 +28,50 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
       EUDAQ_THROW("unable to open file: " + mFilename);
   }
 
-  if (first) {
-    first = false;
-    long long prevTs = 0;
-    int skipCnt = 0;
-    while (true) {
-      /* Our datacollector is starting immediately when "Start" is pressed in
-       * the run-control The AIDA-TLU needs some time. At start a reset TS is
-       * issued by the TLU and processed by the FW (referred to as T0).
-       * This moment accounts for the actual start of the run, from which on
-       * synchronization with telescope data should be possible.
-       * The data before T0 can be discarded is there is no data from telescope
-       * anyways and is just annoying.
-       */
-      if (mDes->HasData()) {
-        uint32_t id;
-        mDes->PreRead(id);
-        eudaq::EventUP ev = nullptr;
-        ev = eudaq::Factory<eudaq::Event>::Create<eudaq::Deserializer &>(id,
-                                                                         *mDes);
-        auto currUdpTs = std::stoll(ev->GetTag("recvTS_FW", "-1"));
-        if (currUdpTs < 30 * 50e9 && currUdpTs < prevTs) {
-          // current TS must be beneath 30s and smaller than the TS of the uDP
-          // pack before to qualify for T0. 30s is a bit of a random choice, but
-          // should be sufficient to find T0 within CERN SPS spill-structure
-          mT0 = currUdpTs;
-          std::cout << "T0 = " << currUdpTs << " = " << currUdpTs * 50e-9
-                    << "s; skipped " << skipCnt << " frames before\n";
-          break;
-        } else {
-          //          std::cout << "skipping event with UDP TS " << currUdpTs <<
-          //          "\n";
-          skipCnt++;
-        }
-        prevTs = currUdpTs;
-      }
-    }
-  }
+  //  if (first) {
+  //    first = false;
+  //    long long prevTs = 0;
+  //    int skipCnt = 0;
+  //    while (true) {
+  //      /* Our datacollector is starting immediately when "Start" is pressed
+  //      in
+  //       * the run-control The AIDA-TLU needs some time. At start a reset TS
+  //       is
+  //       * issued by the TLU and processed by the FW (referred to as T0).
+  //       * This moment accounts for the actual start of the run, from which on
+  //       * synchronization with telescope data should be possible.
+  //       * The data before T0 can be discarded is there is no data from
+  //       telescope
+  //       * anyways and is just annoying.
+  //       */
+  //      if (mDes->HasData()) {
+  //        uint32_t id;
+  //        mDes->PreRead(id);
+  //        eudaq::EventUP ev = nullptr;
+  //        ev = eudaq::Factory<eudaq::Event>::Create<eudaq::Deserializer &>(id,
+  //                                                                         *mDes);
+  //        std::cout << "read event\n";
+  //        auto currUdpTs = std::stoll(ev->GetTag("recvTS_FW", "-1"));
+  //        if (currUdpTs < 30 * 50e9 && currUdpTs < prevTs) {
+  //          // current TS must be beneath 30s and smaller than the TS of the
+  //          uDP
+  //          // pack before to qualify for T0. 30s is a bit of a random choice,
+  //          but
+  //          // should be sufficient to find T0 within CERN SPS spill-structure
+  //          mT0 = currUdpTs;
+  //          std::cout << "T0 = " << currUdpTs << " = " << currUdpTs * 50e-9
+  //                    << "s; skipped " << skipCnt << " frames before\n";
+  //          break;
+  //        } else {
+  //          //          std::cout << "skipping event with UDP TS " <<
+  //          currUdpTs <<
+  //          //          "\n";
+  //          skipCnt++;
+  //        }
+  //        prevTs = currUdpTs;
+  //      }
+  //    }
+  //  }
 
   if (!eventRdy(retval)) {
     // there are no timestamped events left, let's process the next frame
@@ -103,12 +110,15 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
       }
 
       if (mHBBase.size() == 0 && mHBPiggy.size() == 0) {
+
         EUDAQ_ERROR("Buffer after frame processing empty, probably a bug");
+        std::cout << "data left? " << mDes->HasData() << "\n";
+
         return nullptr; // we should never get here, just to be save
       }
 
       buildEvent(mHBBase, mEventBuffBase);
-      buildEvent(mHBPiggy, mEventBuffPiggy);
+      //      buildEvent(mHBPiggy, mEventBuffPiggy);
 
       if (eventRdy(retval)) {
         return std::move(retval);
@@ -134,7 +144,6 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
   }
 
   auto udpTs = std::stoll(frame->GetTag("recvTS_FW", "-1"));
-  std::cout << "frame from UDP TS: " << udpTs << "\n";
 
   if (udpTs < 0) {
     EUDAQ_WARN("no valid UDP TS in the frame");
@@ -197,6 +206,12 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
     hit.avgFrameOvflw = double(ovFlwEOF - ovFlwSOF) / 2.0;
     hit.originFrame = mFrameCnt;
     hit.pixIdx = hi.pixIdx;
+
+    if (hi.pixIdx.col == 0 && hi.pixIdx.row == 0) {
+      continue;
+      // should not be in data, is aweird bug in thedata collector...
+    }
+
     if (hit.isPiggy) {
       mHBPiggy.push_back(hit);
     } else {
@@ -218,48 +233,37 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
   int nOvflwOfOvflw = 0;
   int evtNmb = 0;
 
-  //  for (const auto &hit : in) {
-  //    //    std::cout << "currSOF " << hit.ovflwSOF << " old = " <<
-  //    //    previousHit.ovflwSOF
-  //    //              << "\n";
-  //    if (hit.ovflwSOF < previousHit.ovflwSOF) {
-  //      nOvflwOfOvflw++; // counting the number of overflows of the SOF ovflw
-  //                       // counter inside one UDP package
-  //    }
-  //  }
-  //  auto oldOvflw = in.end()->ovflwSOF;
+  auto oldOvflw = in.end()->ovflwSOF;
   for (auto i = in.rbegin(); i < in.rend(); i++) {
     /* work ourselves from back to front of current UDP package, because
      * the latest hits / frames should be closest (in terms of global timestamp)
      * to the UDP-TS. Is the best way to account for overflows of the
      * overflow-counter in SOF
      */
-    //    if (oldOvflw < i->ovflwSOF && nOvflwOfOvflw > 0) {
-    //      std::cout << "decreasing " << oldOvflw << " " << i->ovflwSOF <<
-    //      "\n";
-    //      // we found an overflow, the number of ovflws of the SOF ovflw
-    //      counter for frames before the current frame  therefore has to be
-    //      decreased by one nOvflwOfOvflw--;
-    //    }
-    //    oldOvflw = i->ovflwSOF;
-
-    // TODO: account for ovflws of the SOF ovflw-counter
-    if (i->udpTs < mT0) {
-      std::stringstream ss;
-      ss << "curr UDP TS " << i->udpTs << " < T0 " << mT0;
-
-      EUDAQ_WARN(ss.str());
+    if (oldOvflw < i->ovflwSOF) {
+      // we found an overflow, the number of ovflws of the SOF ovflw counter
+      // for frames before the current frame  therefore has to be
+      // decreased by one
+      nOvflwOfOvflw++;
     }
-    i->globalTs = (i->udpTs - mT0) >> 16;
-    i->globalTs = (i->globalTs << 16) *
-                  DefsMpw3::dTPerTsLsb; // deleted lower 16 bit of UDP timestamp
-    DefsMpw3::ts_t totalOvflws = i->ovflwSOF + nOvflwOfOvflw * 256;
-    i->globalTs +=
-        totalOvflws * DefsMpw3::dTPerOvflw + i->tsLe * DefsMpw3::dTPerTsLsb;
-    std::cout << "totalOvflw  " << totalOvflws << " nOfvlw " << nOvflwOfOvflw
-              << "\n";
-    std::cout << "set global ts to " << i->globalTs << " for pix "
-              << i->pixIdx.row << ":" << i->pixIdx.col << "\n";
+    oldOvflw = i->ovflwSOF;
+
+    //    i->globalTs = i->udpTs >> 16;
+    //    i->globalTs = (i->globalTs << 16) *
+    //                  DefsMpw3::dTPerTsLsb; // deleted lower 16 bit of UDP
+    //                  timestamp
+    //    i->globalTs +=
+    //        i->ovflwSOF * DefsMpw3::dTPerOvflw + i->tsLe *
+    //        DefsMpw3::dTPerTsLsb;
+    //    std::cout << "pre ovflw ovflw " << i->globalTs
+    //              << " ovflw of ovflw = " << nOvflwOfOvflw << "\n";
+    //    i->globalTs -= (nOvflwOfOvflw << 17) - 20000;
+    //    std::cout << "post ovflw ovflw " << i->globalTs << " = "
+    //              << (nOvflwOfOvflw << 17) << "\n";
+
+    //    std::cout << "set global ts to " << i->globalTs << " for pix "
+    //              << i->pixIdx.row << ":" << i->pixIdx.col << "\n";
+    i->globalTs = i->udpTs;
   }
 
   // Now that we assigned the global timestamps we can sort them in
@@ -284,11 +288,11 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
         break; // we found all hits belonging to the current event
       }
     }
-    std ::cout << "hits for event #" << evtNmb++ << ":\n"
-               << Hit::dbgFileHeader();
-    for (auto i = prefab.begin(); i < prefab.end(); i++) {
-      std::cout << i->toStr() << "\n";
-    }
+    //    std ::cout << "hits for event #" << evtNmb++ << ":\n"
+    //               << Hit::dbgFileHeader();
+    //    for (auto i = prefab.begin(); i < prefab.end(); i++) {
+    //      std::cout << i->toStr() << "\n";
+    //    }
 
     in.erase(
         in.begin(),
@@ -328,6 +332,9 @@ void Mpw3FileReader::finalizePrefab(const HitBuffer &prefab, EventBuffer &out) {
 
     if (tot < 0) {
       tot += 256; // compensate overflow
+    }
+    if (i->pixIdx.row == 0) {
+      std::cout << "row0: " << i->toStr() << "\n";
     }
 
     uint32_t tmp =
