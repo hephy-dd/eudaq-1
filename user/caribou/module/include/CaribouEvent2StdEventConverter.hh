@@ -44,8 +44,18 @@ namespace eudaq {
     static bool t0_is_high_;
     static uint64_t last_shutter_open_;
   };
+  class dSiPMEvent2StdEventConverter: public eudaq::StdEventConverter{
+  public:
+    bool Converting(eudaq::EventSPC d1, eudaq::StandardEventSP d2, eudaq::ConfigurationSPC conf) const override;
+    static const uint32_t m_id_factory = eudaq::cstr2hash("CariboudSiPMEvent");
+  private:
+    static bool m_configured;
+    static bool m_zeroSupp;
+    static uint64_t m_trigger;
+    static uint64_t m_frame;
+  };
 
-  class CLICpix2Event2StdEventConverter : public eudaq::StdEventConverter {
+  class CLICpix2Event2StdEventConverter: public eudaq::StdEventConverter{
   public:
     bool Converting(eudaq::EventSPC d1, eudaq::StandardEventSP d2,
                     eudaq::ConfigurationSPC conf) const override;
