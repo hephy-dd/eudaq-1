@@ -21,8 +21,6 @@ bool Mpw3PreprocessedEvent2StdEventConverter::Converting(
     eudaq::EventSPC d1, eudaq::StdEventSP d2, eudaq::ConfigSPC conf) const {
   auto ev = std::dynamic_pointer_cast<const eudaq::RawEvent>(d1);
 
-  //  std::cout << "converting MPW3FrameEvt\n" << std::flush;
-
   int planes = 0;
 
   for (int i = 0; i < ev->NumBlocks(); i++) {
@@ -72,10 +70,6 @@ bool Mpw3PreprocessedEvent2StdEventConverter::Converting(
       //      pix
       //                << " tot " << tot << "\n"
       //                << std::flush;
-      if (hitPixel.row == 0) {
-        std::cout << " hit pixel " << hitPixel.row << ":" << hitPixel.col
-                  << " because of " << word << "\n";
-      }
 
       plane.PushPixel(hitPixel.col, hitPixel.row,
                       tot); // store ToT as "raw pixel value"
@@ -83,10 +77,17 @@ bool Mpw3PreprocessedEvent2StdEventConverter::Converting(
     d2->AddPlane(plane);
     planes++;
   }
-  d2->SetTimeBegin(d1->GetTimestampBegin() *
-                   DefsMpw3::lsbTime); // here we set time in [ps], this is the
-                                       // way Corryvreckan is expecting it
-  d2->SetTimeEnd(d1->GetTimestampEnd() * DefsMpw3::lsbTime);
+
+  uint64_t shiftTime = 0;
+  if (conf != nullptr) {
+    shiftTime = conf->Get("shift_time_us", 0);
+  }
+  d2->SetTimeBegin(d1->GetTimestampBegin() * DefsMpw3::lsbTime +
+                   int64_t(shiftTime) *
+                       1e6); // here we set time in [ps], this is the
+                             // way Corryvreckan is expecting it
+  d2->SetTimeEnd(d1->GetTimestampEnd() * DefsMpw3::lsbTime +
+                 int64_t(shiftTime) * 1e6);
   if (planes > 0) {
     return true;
   }
