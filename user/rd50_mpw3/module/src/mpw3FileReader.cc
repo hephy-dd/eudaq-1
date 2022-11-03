@@ -28,50 +28,44 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
       EUDAQ_THROW("unable to open file: " + mFilename);
   }
 
-  //  if (first) {
-  //    first = false;
-  //    long long prevTs = 0;
-  //    int skipCnt = 0;
-  //    while (true) {
-  //      /* Our datacollector is starting immediately when "Start" is pressed
-  //      in
-  //       * the run-control The AIDA-TLU needs some time. At start a reset TS
-  //       is
-  //       * issued by the TLU and processed by the FW (referred to as T0).
-  //       * This moment accounts for the actual start of the run, from which on
-  //       * synchronization with telescope data should be possible.
-  //       * The data before T0 can be discarded is there is no data from
-  //       telescope
-  //       * anyways and is just annoying.
-  //       */
-  //      if (mDes->HasData()) {
-  //        uint32_t id;
-  //        mDes->PreRead(id);
-  //        eudaq::EventUP ev = nullptr;
-  //        ev = eudaq::Factory<eudaq::Event>::Create<eudaq::Deserializer &>(id,
-  //                                                                         *mDes);
-  //        std::cout << "read event\n";
-  //        auto currUdpTs = std::stoll(ev->GetTag("recvTS_FW", "-1"));
-  //        if (currUdpTs < 30 * 50e9 && currUdpTs < prevTs) {
-  //          // current TS must be beneath 30s and smaller than the TS of the
-  //          uDP
-  //          // pack before to qualify for T0. 30s is a bit of a random choice,
-  //          but
-  //          // should be sufficient to find T0 within CERN SPS spill-structure
-  //          mT0 = currUdpTs;
-  //          std::cout << "T0 = " << currUdpTs << " = " << currUdpTs * 50e-9
-  //                    << "s; skipped " << skipCnt << " frames before\n";
-  //          break;
-  //        } else {
-  //          //          std::cout << "skipping event with UDP TS " <<
-  //          currUdpTs <<
-  //          //          "\n";
-  //          skipCnt++;
-  //        }
-  //        prevTs = currUdpTs;
-  //      }
-  //    }
-  //  }
+  if (first) {
+    first = false;
+    long long prevTs = 0;
+    int skipCnt = 0;
+    while (true) {
+      /* Our datacollector is starting immediately when "Start" is pressed
+      in
+       * the run-control The AIDA-TLU needs some time. At start a reset TS
+       is
+       * issued by the TLU and processed by the FW (referred to as T0).
+       * This moment accounts for the actual start of the run, from which on
+       * synchronization with telescope data should be possible.
+       * The data before T0 can be discarded is there is no data from
+       telescope
+       * anyways and is just annoying.
+       */
+      if (mDes->HasData()) {
+        uint32_t id;
+        mDes->PreRead(id);
+        eudaq::EventUP ev = nullptr;
+        ev = eudaq::Factory<eudaq::Event>::Create<eudaq::Deserializer &>(id,
+                                                                         *mDes);
+        auto currUdpTs = std::stoll(ev->GetTag("recvTS_FW", "-1"));
+        if (currUdpTs < double(30) / 50e-9) {
+          // current TS must be beneath 30s and smaller than the TS of the UDP
+          // pack before to qualify for T0. 30s is a bit of a random choice, but
+          // should be sufficient to find T0 within CERN SPS spill-structure
+          std::cout << "T0 = " << currUdpTs << " = " << currUdpTs * 50e-9
+                    << "s; skipped " << skipCnt << " frames before\n";
+          break;
+        } else {
+          //              std::cout << "skipping " << currUdpTs << "\n";
+          skipCnt++;
+        }
+        prevTs = currUdpTs;
+      }
+    }
+  }
 
   if (!eventRdy(retval)) {
     // there are no timestamped events left, let's process the next frame
@@ -248,22 +242,12 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
     }
     oldOvflw = i->ovflwSOF;
 
-    //    i->globalTs = i->udpTs >> 16;
-    //    i->globalTs = (i->globalTs << 16) *
-    //                  DefsMpw3::dTPerTsLsb; // deleted lower 16 bit of UDP
-    //                  timestamp
-    //    i->globalTs +=
-    //        i->ovflwSOF * DefsMpw3::dTPerOvflw + i->tsLe *
-    //        DefsMpw3::dTPerTsLsb;
-    //    std::cout << "pre ovflw ovflw " << i->globalTs
-    //              << " ovflw of ovflw = " << nOvflwOfOvflw << "\n";
-    //    i->globalTs -= (nOvflwOfOvflw << 17) - 20000;
-    //    std::cout << "post ovflw ovflw " << i->globalTs << " = "
-    //              << (nOvflwOfOvflw << 17) << "\n";
-
-    //    std::cout << "set global ts to " << i->globalTs << " for pix "
-    //              << i->pixIdx.row << ":" << i->pixIdx.col << "\n";
-    i->globalTs = i->udpTs;
+    i->globalTs = i->udpTs >> 16;
+    i->globalTs = (i->globalTs << 16) *
+                  DefsMpw3::dTPerTsLsb; // deleted lower 16 bit of UDP timestamp
+    i->globalTs +=
+        i->ovflwSOF * DefsMpw3::dTPerOvflw + i->tsLe * DefsMpw3::dTPerTsLsb;
+    i->globalTs -= (nOvflwOfOvflw << 17);
   }
 
   // Now that we assigned the global timestamps we can sort them in
@@ -332,9 +316,6 @@ void Mpw3FileReader::finalizePrefab(const HitBuffer &prefab, EventBuffer &out) {
 
     if (tot < 0) {
       tot += 256; // compensate overflow
-    }
-    if (i->pixIdx.row == 0) {
-      std::cout << "row0: " << i->toStr() << "\n";
     }
 
     uint32_t tmp =
