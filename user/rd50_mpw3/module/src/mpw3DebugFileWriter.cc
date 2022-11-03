@@ -58,7 +58,11 @@ void Mpw3DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
   }
 #else
   auto evstd = eudaq::StandardEvent::MakeShared();
-  eudaq::StdEventConverter::Convert(ev, evstd, nullptr);
+  auto success = eudaq::StdEventConverter::Convert(ev, evstd, nullptr);
+  if (evstd == nullptr || !success) {
+    std::cout << "error during event conversion\n";
+    return;
+  }
   mOut << "\n"
        << evstd->GetTimestampBegin() << " => t = " << evstd->GetTimeBegin()
        << " |  ";
