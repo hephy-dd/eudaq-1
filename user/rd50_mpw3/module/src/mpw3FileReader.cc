@@ -101,12 +101,14 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
             break;
           }
         }
+      } else {
+        return nullptr;
+        // no events and no data left, we have finished
       }
 
-      if (mHBBase.size() == 0 && mHBPiggy.size() == 0) {
+      if (mHBBase.size() == 0 && mHBPiggy.size() == 0 && mDes->HasData()) {
 
         EUDAQ_ERROR("Buffer after frame processing empty, probably a bug");
-        std::cout << "data left? " << mDes->HasData() << "\n";
 
         return nullptr; // we should never get here, just to be save
       }
@@ -201,10 +203,11 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
     hit.originFrame = mFrameCnt;
     hit.pixIdx = hi.pixIdx;
 
-    if (hi.pixIdx.col == 0 && hi.pixIdx.row == 0) {
-      continue;
-      // should not be in data, is aweird bug in thedata collector...
-    }
+    //    if (hi.pixIdx.col == 0 && hi.pixIdx.row == 0) {
+    //      std::cout << "pix 0:0\n";
+    //            continue;
+    //      // should not be in data, is aweird bug in thedata collector...
+    //    }
 
     if (hit.isPiggy) {
       mHBPiggy.push_back(hit);
@@ -217,6 +220,8 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
   mTimeForFrame = tmp - lastT;
   lastT = tmp;
   mFrameCnt++;
+
+  std::cout << "\rprocessed frame " << mFrameCnt;
   return true;
 }
 
