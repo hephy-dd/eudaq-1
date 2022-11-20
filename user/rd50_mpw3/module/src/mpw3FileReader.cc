@@ -19,50 +19,46 @@ Mpw3FileReader::Mpw3FileReader(const std::string &filename)
     : mFilename(filename) {}
 
 eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
+  const double t0Thr = 30.0; // time first event has to have in order to qualify
+                             // as a T0'ed event from a run start
+
   static bool first = true;
   eudaq::EventSP retval = nullptr;
   if (!mDes) {
     mDes.reset(new eudaq::FileDeserializer(mFilename));
-    mStartTime = std::chrono::high_resolution_clock::now();
     if (!mDes)
       EUDAQ_THROW("unable to open file: " + mFilename);
   }
 
   if (first) {
     first = false;
-    long long prevTs = 0;
     int skipCnt = 0;
-    while (true) {
+    while (mDes->HasData()) {
       /* Our datacollector is starting immediately when "Start" is pressed
-      in
-       * the run-control The AIDA-TLU needs some time. At start a reset TS
-       is
-       * issued by the TLU and processed by the FW (referred to as T0).
+       * in the run-control
+       * The AIDA-TLU needs some time. At start a reset TS
+       * is issued by the TLU and processed by the FW (referred to as T0).
        * This moment accounts for the actual start of the run, from which on
        * synchronization with telescope data should be possible.
-       * The data before T0 can be discarded is there is no data from
-       telescope
-       * anyways and is just annoying.
+       * The data before T0 can be discarded as for thes hits there will be no
+       * data from telescope anyways so it's just annoying.
        */
-      if (mDes->HasData()) {
-        uint32_t id;
-        mDes->PreRead(id);
-        eudaq::EventUP ev = nullptr;
-        ev = eudaq::Factory<eudaq::Event>::Create<eudaq::Deserializer &>(id,
-                                                                         *mDes);
-        auto currUdpTs = std::stoll(ev->GetTag("recvTS_FW", "-1"));
-        if (currUdpTs < double(30) / 50e-9) {
-          // current TS must be beneath 30s and smaller than the TS of the UDP
-          // pack before to qualify for T0. 30s is a bit of a random choice, but
-          // should be sufficient to find T0 within CERN SPS spill-structure
-          std::cout << "T0 = " << currUdpTs << " = " << currUdpTs * 50e-9
-                    << "s; skipped " << skipCnt << " frames before\n";
-          break;
-        } else {
-          //              std::cout << "skipping " << currUdpTs << "\n";
-          skipCnt++;
-        }
-        prevTs = currUdpTs;
+      uint32_t id;
+      mDes->PreRead(id);
+      eudaq::EventUP ev = nullptr;
+      ev = eudaq::Factory<eudaq::Event>::Create<eudaq::Deserializer &>(id,
+                                                                       *mDes);
+      auto currUdpTs = std::stoll(ev->GetTag("recvTS_FW", "-1"));
+      if (currUdpTs < t0Thr / 50e-9) {
+        // current TS must be beneath 30s to qualify for T0. 30s is a bit of a
+        // random choice, but should be sufficient to find T0 within CERN SPS
+        // spill-structure
+        std::cout << "T0 = " << currUdpTs << " = " << currUdpTs * 50e-9
+                  << "s; skipped " << skipCnt << " frames before\n";
+        break;
+      } else {
+        //              std::cout << "skipping " << currUdpTs << "\n";
+        skipCnt++;
       }
     }
   }
@@ -90,7 +86,8 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
             // FIXME first event of new UDP pack get's thrown away
             // We aim to parse all frames within an UDP pack at first
             if (!processFrame(ev)) {
-              EUDAQ_WARN("Error processing frame; skipping this one");
+              //              EUDAQ_WARN("Error processing frame; skipping this
+              //              one");
               continue;
             }
             if (udpTs != currUdpTs) {
@@ -102,6 +99,8 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
           }
         }
       } else {
+        std::cout << "\n garbage count = " << mGarbageCnt
+                  << " hits in multiple events = " << mOvflwSofVsEof << "\n";
         return nullptr;
         // no events and no data left, we have finished
       }
@@ -184,6 +183,33 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
   auto firstEOF =
       std::find_if(rawData.begin(), rawData.end(), &DefsMpw3::isEOF);
 
+  auto nEmptyWords =
+      std::count_if(lastSOF.base(), firstEOF,
+                    [](DefsMpw3::word_t word) { return word == 0; });
+
+  if (nEmptyWords > 0) {
+    /*
+     * due to some bug in the chip or the datacollector sometimes weird frames
+     * like:
+     * af000000 SOF ovflwCnt = 0
+     * 0 piggy? 0 idx = 00:00 TSTE = 000 TSLE = 000 Tot = 000
+     * 0 piggy? 0 idx = 00:00 TSTE = 000 TSLE = 000 Tot = 000
+     * 0 piggy? 0 idx = 00:00 TSTE = 000 TSLE = 000 Tot = 000
+     * 6af0ef piggy? 0 idx = 53:01 TSTE = 240 TSLE = 239 Tot = 001
+     * 0 piggy? 0 idx = 00:00 TSTE = 000 TSLE = 000 Tot = 000
+     * 0 piggy? 0 idx = 00:00 TSTE = 000 TSLE = 000 Tot = 000
+     * 0 piggy? 0 idx = 00:00 TSTE = 000 TSLE = 000 Tot = 000
+     * e00000e5 EOF ovflwCnt = 229
+     *
+     * occur in the data.
+     * Throw them away (for the moment). Analysis showed, accounts only for ~1%
+     * of the data
+     */
+
+    mGarbageCnt++;
+    return false;
+  }
+
   // there might be more than 1 SOF / EOF word (base and piggy come with their
   // own) at this stage we only want to process the payload (hit) data in
   // between both
@@ -199,28 +225,43 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
     hit.isPiggy = hi.piggy;
     hit.ovflwSOF = ovFlwSOF;
     hit.ovflwEOF = ovFlwEOF;
-    hit.avgFrameOvflw = double(ovFlwEOF - ovFlwSOF) / 2.0;
+    hit.avgFrameOvflw = double(ovFlwEOF + ovFlwSOF) / 2.0;
+    hit.ovflwForCalc = ovFlwSOF;
     hit.originFrame = mFrameCnt;
     hit.pixIdx = hi.pixIdx;
 
-    //    if (hi.pixIdx.col == 0 && hi.pixIdx.row == 0) {
-    //      std::cout << "pix 0:0\n";
-    //            continue;
-    //      // should not be in data, is aweird bug in thedata collector...
-    //    }
+    int diffEOFvsSOF = int(hit.ovflwEOF) - int(hit.ovflwSOF);
+    diffEOFvsSOF = diffEOFvsSOF < 0 ? diffEOFvsSOF + 256
+                                    : diffEOFvsSOF; // account for overflow
 
-    if (hit.isPiggy) {
-      mHBPiggy.push_back(hit);
-    } else {
-      mHBBase.push_back(hit);
+    if (diffEOFvsSOF > 1) {
+      //      EUDAQ_WARN("unreasonably big ovflw diff in SOF and EOF: " +
+      //                 std::to_string(diffEOFvsSOF));
+      //      std::cout << "SOF = " << hit.ovflwSOF << " EOF = " << hit.ovflwEOF
+      //                << "\n";
+      mGarbageCnt++;
+      return false;
+    } else if (diffEOFvsSOF == 1) {
+        mOvflwSofVsEof++;
+      hit.inMoreThan1Evt = true;
+    }
+
+    /* If overflow counter in SOF != EOF duplicate hit and assign to all
+     * overflows
+     * We do not know which one resembles the "truth" better
+     */
+    //    std::cout << "diff = " << diffEOFvsSOF << "\n";
+    for (int i = diffEOFvsSOF + 1; i > 0; i--) {
+      hit.ovflwForCalc = hit.ovflwSOF - (i + 1);
+
+      if (hit.isPiggy) {
+        mHBPiggy.push_back(hit);
+      } else {
+        mHBBase.push_back(hit);
+      }
     }
   }
-
-  auto tmp = std::chrono::high_resolution_clock::now();
-  mTimeForFrame = tmp - lastT;
-  lastT = tmp;
   mFrameCnt++;
-
   std::cout << "\rprocessed frame " << mFrameCnt;
   return true;
 }
@@ -232,26 +273,26 @@ void Mpw3FileReader::buildEvent(HitBuffer &in, EventBuffer &out) {
   int nOvflwOfOvflw = 0;
   int evtNmb = 0;
 
-  auto oldOvflw = in.end()->ovflwSOF;
+  auto oldOvflw = in.end()->ovflwForCalc;
   for (auto i = in.rbegin(); i < in.rend(); i++) {
     /* work ourselves from back to front of current UDP package, because
      * the latest hits / frames should be closest (in terms of global timestamp)
      * to the UDP-TS. Is the best way to account for overflows of the
      * overflow-counter in SOF
      */
-    if (oldOvflw < i->ovflwSOF) {
+    if (oldOvflw < i->ovflwForCalc) {
       // we found an overflow, the number of ovflws of the SOF ovflw counter
       // for frames before the current frame  therefore has to be
       // decreased by one
       nOvflwOfOvflw++;
     }
-    oldOvflw = i->ovflwSOF;
+    oldOvflw = i->ovflwForCalc;
 
     i->globalTs = i->udpTs >> 16;
     i->globalTs = (i->globalTs << 16) *
                   DefsMpw3::dTPerTsLsb; // deleted lower 16 bit of UDP timestamp
     i->globalTs +=
-        i->ovflwSOF * DefsMpw3::dTPerOvflw + i->tsLe * DefsMpw3::dTPerTsLsb;
+        i->ovflwForCalc * DefsMpw3::dTPerOvflw + i->tsLe * DefsMpw3::dTPerTsLsb;
     i->globalTs -= (nOvflwOfOvflw << 17);
   }
 
@@ -335,6 +376,7 @@ void Mpw3FileReader::finalizePrefab(const HitBuffer &prefab, EventBuffer &out) {
                       : "false"; // they all originate either from piggy or
                                  // base, looking at 1 is sufficient
   euEvent->SetTag("isPiggy", piggyTag);
+  euEvent->SetTag("hitInMultipleEvents", prefab[0].inMoreThan1Evt);
   out.push_back(euEvent);
   /* this preprocessed event now contains information of
    * pixel identifiers and ToT of all hit pixel in the processed timewindow,
@@ -345,9 +387,6 @@ void Mpw3FileReader::finalizePrefab(const HitBuffer &prefab, EventBuffer &out) {
    */
 
   mEventCnt++;
-  auto tmp = std::chrono::high_resolution_clock::now();
-  mTimeForEvent = tmp - lastT;
-  lastT = tmp;
 }
 
 bool Mpw3FileReader::eventRdy(eudaq::EventSP &event) {

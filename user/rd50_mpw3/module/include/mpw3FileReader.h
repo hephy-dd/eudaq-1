@@ -13,7 +13,7 @@ public:
 
 private:
   struct Hit {
-    DefsMpw3::ts_t ovflwSOF, ovflwEOF;
+    DefsMpw3::ts_t ovflwSOF, ovflwEOF, ovflwForCalc;
     double avgFrameOvflw;
     uint8_t dcol;
     uint8_t pix;
@@ -23,6 +23,7 @@ private:
     bool isPiggy;
     bool tsGenerated = false;
     int originFrame;
+    bool inMoreThan1Evt = false;
     int64_t udpTs;
     DefsMpw3::PixelIndex pixIdx;
 
@@ -57,9 +58,7 @@ private:
   EventBuffer mEventBuffBase, mEventBuffPiggy;
   std::vector<Hit> mHBBase, mHBPiggy;
 
-  uint64_t mEventCnt = 0, mFrameCnt = 0;
-  std::chrono::high_resolution_clock::duration mTimeForEvent, mTimeForFrame;
-  std::chrono::high_resolution_clock::time_point mStartTime;
+  uint64_t mEventCnt = 0, mFrameCnt = 0, mGarbageCnt = 0, mOvflwSofVsEof = 0;
 };
 #define MPW3FILEREADER_H
 
