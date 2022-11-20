@@ -1,6 +1,6 @@
 Modules for the RD50_MPW3 chip, in particular the "fast-data-path".
 
-## Building
+# Building
 
 By default the cmake-flag is deactivated '''USER_MPW3_BUILD'''.
 When you activate it with the cmake parameter '''-D USER_MPW3_BUILD=ON''' several modules will be built:
@@ -10,7 +10,7 @@ When you activate it with the cmake parameter '''-D USER_MPW3_BUILD=ON''' severa
 4) mpw3FrameEvent2StdEventConverter
 5) mpw3PreprocessedEvent2StdEventConverter
 
-##The modules
+#The modules
 
 ##1) mpw3DataCollector
 
@@ -55,3 +55,9 @@ rd50_mpw3_gui is utilizing this converter.
 ##5) mpw3PreprocessedEvent2StdEventConverter
 
 Converts a "MPW3PreprocessedEvent" into an EudaqStandard-Event. This converter is be used by Corryvreckan when loading a preprocessed ".raw"-file with [EventLoaderEUDAQ2]
+
+### Parameters:
+The following parameters can be forwarded to the EventConverter:  
+- "shift_time_us": event start and end time will be shifted by the specified amount in [us]  
+- "min_tot": hits below this ToT value  will be skipped  
+- "max_tot": hits above this ToT value  will be skipped  

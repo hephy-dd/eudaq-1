@@ -66,10 +66,16 @@ bool Mpw3PreprocessedEvent2StdEventConverter::Converting(
       uint16_t tot = word & 0xFFFF;
 
       auto hitPixel = DefsMpw3::dColIdx2Pix(dcol, pix);
-      //      std::cout << "word = " << word << " dcol " << dcol << " pix " <<
-      //      pix
-      //                << " tot " << tot << "\n"
-      //                << std::flush;
+      auto totMin = 0, totMax = -1;
+
+      if (conf != nullptr) {
+        totMin = conf->Get("min_tot", 0);
+        totMax = conf->Get("max_tot", -1);
+      }
+
+      if (tot < totMin || (totMax > 0 && tot > totMax)) {
+        continue;
+      }
 
       plane.PushPixel(hitPixel.col, hitPixel.row,
                       tot); // store ToT as "raw pixel value"

@@ -65,7 +65,7 @@ void Mpw3DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
   }
   mOut << "\n"
        << evstd->GetTimestampBegin() << " => t = " << evstd->GetTimeBegin()
-       << " |  ";
+       << " multiple? " << ev->GetTag("hitInMultipleEvents", false) << " |  ";
   auto plane = evstd->GetPlane(0);
   for (int i = 0; i < plane.HitPixels(); i++) {
     auto col = int(plane.GetX(i));
