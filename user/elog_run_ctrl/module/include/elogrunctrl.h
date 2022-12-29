@@ -5,6 +5,7 @@
 #include "elog.h"
 
 #include <QWidget>
+#include <QMap>
 
 namespace Ui {
 class ElogRunCtrl;
@@ -28,11 +29,18 @@ public:
     static const uint32_t m_id_factory = eudaq::cstr2hash("ElogRC");
 
 private:
-    void populateUi();
-    QStringList parseElogConfig(const std::string &key);
+    struct Attribute{
+        QString name;
+        QStringList options;
+        bool required;
+    };
+    using AttList = QList<Attribute>;
 
-    Ui::ElogRunCtrl *ui;
-    QStringList mAtt, mOptType, mOptCat, mReqAtt;
+    void populateUi();
+    QStringList parseElogCfgLine(const std::string &key);
+
+    Ui::ElogRunCtrl *ui;    
+    AttList mAttributes;
     Elog mElog;
 };
 
