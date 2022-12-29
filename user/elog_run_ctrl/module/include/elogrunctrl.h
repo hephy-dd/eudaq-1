@@ -2,6 +2,8 @@
 #define ELOGRUNCTRL_H
 
 #include "RunControl.hh"
+#include "elog.h"
+
 #include <QWidget>
 
 namespace Ui {
@@ -26,7 +28,12 @@ public:
     static const uint32_t m_id_factory = eudaq::cstr2hash("ElogRC");
 
 private:
+    void populateUi();
+    QStringList parseElogConfig(const std::string &key);
+
     Ui::ElogRunCtrl *ui;
+    QStringList mAtt, mOptType, mOptCat, mReqAtt;
+    Elog mElog;
 };
 
 #endif // ELOGRUNCTRL_H
