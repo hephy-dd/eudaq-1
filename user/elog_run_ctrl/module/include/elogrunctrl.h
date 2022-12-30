@@ -37,6 +37,7 @@ private:
     using AttList = QList<Attribute>;
 
     void populateUi();
+    void elogSetup();
     QStringList parseElogCfgLine(const std::string &key);
 
     Ui::ElogRunCtrl *ui;    
