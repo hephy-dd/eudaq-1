@@ -16,6 +16,7 @@ ElogRunCtrl::ElogRunCtrl(const std::string &listenaddress, QWidget *parent)
       ui(new Ui::ElogRunCtrl) {
   ui->setupUi(this);
   this->show();
+  connect(ui->pbSubmit, &QPushButton::clicked, this, &ElogRunCtrl::submit);
 }
 
 ElogRunCtrl::~ElogRunCtrl() { delete ui; }
@@ -38,6 +39,31 @@ void ElogRunCtrl::Exec() { RunControl::Exec(); }
 void ElogRunCtrl::Reset() {
   RunControl::Reset();
   mElog.reset();
+}
+
+void ElogRunCtrl::submit() {
+  using Att = QPair<QString, QString>;
+  QList<Att> attributes;
+  for (int i = 0; i < ui->twAtt->rowCount(); i++) {
+    Att att;
+    auto nameItem = ui->twAtt->item(i, 0);
+    if (nameItem == nullptr) {
+      qWarning() << "trying to send uninitialized attribute name";
+      continue;
+    }
+    att.first = nameItem->data(Qt::DisplayRole).toString();
+    auto valItem = ui->twAtt->item(i, 1);
+    if (valItem != nullptr) {
+      att.second = valItem->data(Qt::DisplayRole).toString();
+    }
+    auto w = ui->twAtt->cellWidget(i, 1);
+    auto cb = qobject_cast<QComboBox *>(w);
+    if (cb != nullptr) {
+      att.second = cb->currentText();
+    }
+    attributes << att;
+  }
+  mElog.submitEntry(attributes, ui->teMessage->toPlainText());
 }
 
 void ElogRunCtrl::populateUi() {
@@ -70,7 +96,7 @@ void ElogRunCtrl::elogSetup() {
 
   auto keys = ini->Keylist();
 
-  /*look for specified options for the attributes
+  /* look for specified options for the attributes
    * each option line looks something like:
    * "Options Type = Routine, Software Installation, Problem Fixed,
    * Configuration, Other"
@@ -99,7 +125,7 @@ void ElogRunCtrl::elogSetup() {
     attribute.options =
         options[a]; // results in empty list when argument comes with no options
     attribute.required = req.contains(a) ? true : false;
-    mAttributes << attribute;
+    mAttributes << std::move(attribute);
     //    qDebug() << "added " << attribute.name << " with o " <<
     //    attribute.options
     //             << " req? " << attribute.required;

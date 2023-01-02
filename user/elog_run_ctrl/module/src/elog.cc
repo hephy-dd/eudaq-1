@@ -1,6 +1,7 @@
 #include "elog.h"
 
 #include <QDebug>
+#include <QFile>
 
 Elog::Elog(QObject *parent) : QObject{parent} {}
 
@@ -19,6 +20,44 @@ void Elog::setElogProgramPath(const QString &path) { mProc.setProgram(path); }
 uint32_t Elog::port() const { return mPort; }
 
 void Elog::setPort(uint32_t newPort) { mPort = newPort; }
+
+bool Elog::submitEntry(const QList<QPair<QString, QString>> &attributes,
+                       const QString &message) {
+  QFile msgFile(tmpFile);
+  if (!msgFile.open(QIODevice::WriteOnly)) {
+    qWarning("error opening temp file");
+    return false;
+  }
+  QTextStream ts(&msgFile);
+  ts << message;
+  ts.flush();
+
+  QStringList args;
+  args << "-h" << mHost;
+  args << "-l" << mLogbook;
+  args << "-p" << QString::number(mPort);
+  args << "-m" << tmpFile;
+  foreach (const auto &att, attributes) {
+    args << "-a" << QString("%1=%2").arg(att.first, att.second);
+  }
+  qDebug() << args;
+  mProc.setArguments(args);
+  mProc.start();
+  mProc.waitForFinished(3000);
+  auto finished = mProc.waitForFinished(10000);
+  auto exitCode = mProc.exitCode();
+  qDebug() << "finished? " << finished << " exit code = " << exitCode;
+  if (!finished) {
+    qWarning() << "timeout sending elog message";
+    qDebug() << mProc.readAllStandardError() << mProc.readAllStandardOutput();
+    return false;
+  }
+  if (exitCode != 0) {
+    qWarning() << "error submitting elog: " << mProc.readAllStandardOutput();
+    return false;
+  }
+  return true;
+}
 
 bool Elog::reset() { return mProc.reset(); }
 

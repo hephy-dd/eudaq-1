@@ -19,10 +19,13 @@ public:
     uint32_t port() const;
     void setPort(uint32_t newPort);
 
+    bool submitEntry(const QList<QPair<QString, QString>> &attributes, const QString &message);
+
     bool reset();
     void debugPrint();
 
 private:
+    const QString tmpFile = "/tmp/elog_msg";
     QProcess mProc;
     QString mHost, mLogbook, mUser, mPass;
     uint32_t mPort;

@@ -16,6 +16,13 @@
   <layout class="QGridLayout" name="gridLayout_2">
    <item row="0" column="0">
     <layout class="QGridLayout" name="gridLayout">
+     <item row="0" column="1">
+      <widget class="QPushButton" name="pbSubmit">
+       <property name="text">
+        <string>Submit</string>
+       </property>
+      </widget>
+     </item>
      <item row="0" column="0">
       <widget class="QTableWidget" name="twAtt">
        <property name="columnCount">
@@ -33,12 +40,8 @@
        </column>
       </widget>
      </item>
-     <item row="0" column="1">
-      <widget class="QPushButton" name="pbSubmit">
-       <property name="text">
-        <string>Submit</string>
-       </property>
-      </widget>
+     <item row="1" column="0">
+      <widget class="QTextEdit" name="teMessage"/>
      </item>
     </layout>
    </item>

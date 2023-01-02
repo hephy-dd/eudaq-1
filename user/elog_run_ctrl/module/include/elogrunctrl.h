@@ -28,6 +28,9 @@ public:
 
     static const uint32_t m_id_factory = eudaq::cstr2hash("ElogRC");
 
+private slots:
+    void submit();
+
 private:
     struct Attribute{
         QString name;
@@ -39,6 +42,8 @@ private:
     void populateUi();
     void elogSetup();
     QStringList parseElogCfgLine(const std::string &key);
+
+
 
     Ui::ElogRunCtrl *ui;    
     AttList mAttributes;
