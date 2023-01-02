@@ -38,15 +38,18 @@ bool Elog::submitEntry(const QList<QPair<QString, QString>> &attributes,
   args << "-p" << QString::number(mPort);
   args << "-m" << tmpFile;
   foreach (const auto &att, attributes) {
+    /*
+     * attribues have to be given by
+     * -a <Name>=<value>
+     * eg
+     * -a Type=Software
+     */
     args << "-a" << QString("%1=%2").arg(att.first, att.second);
   }
-  qDebug() << args;
   mProc.setArguments(args);
   mProc.start();
-  mProc.waitForFinished(3000);
-  auto finished = mProc.waitForFinished(10000);
+  auto finished = mProc.waitForFinished(5000);
   auto exitCode = mProc.exitCode();
-  qDebug() << "finished? " << finished << " exit code = " << exitCode;
   if (!finished) {
     qWarning() << "timeout sending elog message";
     qDebug() << mProc.readAllStandardError() << mProc.readAllStandardOutput();
