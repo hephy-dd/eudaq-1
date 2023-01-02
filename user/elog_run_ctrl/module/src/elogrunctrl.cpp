@@ -4,6 +4,7 @@
 #include <QComboBox>
 #include <QDebug>
 #include <QRegularExpression>
+#include <QTime>
 
 namespace {
 auto dummy0 = eudaq::Factory<eudaq::RunControl>::Register<ElogRunCtrl,
@@ -63,7 +64,16 @@ void ElogRunCtrl::submit() {
     }
     attributes << att;
   }
-  mElog.submitEntry(attributes, ui->teMessage->toPlainText());
+  auto succ = mElog.submitEntry(attributes, ui->teMessage->toPlainText());
+  if (succ) {
+    ui->tbLog->insertPlainText(
+        QString("Sent log: %1\n")
+            .arg(QTime::currentTime().toString("hh:mm:ss")));
+  } else {
+    ui->tbLog->insertPlainText(
+        QString("Error sending log: %1\n")
+            .arg(QTime::currentTime().toString("hh:mm:ss")));
+  }
 }
 
 void ElogRunCtrl::populateUi() {

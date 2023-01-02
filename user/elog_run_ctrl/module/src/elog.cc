@@ -28,6 +28,7 @@ bool Elog::submitEntry(const QList<QPair<QString, QString>> &attributes,
     qWarning("error opening temp file");
     return false;
   }
+  // write message to temporary file to forward to elog program
   QTextStream ts(&msgFile);
   ts << message;
   ts.flush();
@@ -59,7 +60,20 @@ bool Elog::submitEntry(const QList<QPair<QString, QString>> &attributes,
     qWarning() << "error submitting elog: " << mProc.readAllStandardOutput();
     return false;
   }
-  return true;
+  auto output = mProc.readAllStandardOutput();
+  /*
+   * elog program does not return !=0 in all error cases
+   * parse and process output instead
+   */
+  if (output.contains("Error")) {
+    qWarning() << output;
+    return false;
+  }
+  if (output.contains("successfully")) {
+    return true;
+  }
+  qWarning() << output;
+  return false;
 }
 
 bool Elog::reset() { return mProc.reset(); }
