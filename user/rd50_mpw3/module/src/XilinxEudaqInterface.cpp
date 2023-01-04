@@ -51,12 +51,14 @@ namespace SVD {
                 m_euLogger->SendLogMessage(
                     eudaq::LogMessage(ss.str(), eudaq::LogMessage::LVL_WARN));
               }
-            }            
+            }
             if (data.empty())
               continue;
 
             using namespace std::chrono;
-            auto now = duration_cast<microseconds>(high_resolution_clock::now().time_since_epoch()).count();
+            auto now = duration_cast<microseconds>(
+                           high_resolution_clock::now().time_since_epoch())
+                           .count();
             uint32_t nowMsb = uint32_t(now >> 32);
             uint32_t nowLsb = now & 0xffffffff;
             data.push_back(nowMsb);
@@ -126,11 +128,11 @@ namespace SVD {
             frame.pop_back();
             cpuTsMsb = frame.back();
             frame.pop_back();
-            uint64_t cpuTs64Bit = uint64_t(cpuTsLsb) + (uint64_t(cpuTsMsb) << uint64_t(32));
+            uint64_t cpuTs64Bit =
+                uint64_t(cpuTsLsb) + (uint64_t(cpuTsMsb) << uint64_t(32));
             const auto curPayload = PackageID(frame.back());
-            // UDP package counter is located at last word of UDP packet, than there is a 
-            // 64 bit ovflw counter based on 50 ns added by the FPGA
-
+            // UDP package counter is located at last word of UDP packet, than
+            // there is a 64 bit ovflw counter based on 50 ns added by the FPGA
 
             if (curPayload != ((++lastPayload) & 0xffffff)) {
               fadc.clear();
@@ -146,12 +148,13 @@ namespace SVD {
             continue;
           }
 
-            frame.pop_back();
-            fw64BitTsMsb = frame.back();
-            frame.pop_back();
-            fw64BitTsLsb = frame.back();
-            frame.pop_back();
-            uint64_t fw64BitOvflwFull = (uint64_t(fw64BitTsMsb) << uint64_t(32)) + uint64_t(fw64BitTsLsb);
+          frame.pop_back();
+          fw64BitTsMsb = frame.back();
+          frame.pop_back();
+          fw64BitTsLsb = frame.back();
+          frame.pop_back();
+          uint64_t fw64BitOvflwFull =
+              (uint64_t(fw64BitTsMsb) << uint64_t(32)) + uint64_t(fw64BitTsLsb);
           //          std::cout << " next frame size = " << frame.size() <<
           //          "\n";
           auto itBegin = fadc.empty()
@@ -198,7 +201,6 @@ namespace SVD {
                 fadc.push_back(fw64BitTsLsb);
                 fadc.push_back(cpuTsMsb);
                 fadc.push_back(cpuTsLsb);
-                std::cout << "unpacker set stuff to " << fw64BitTsMsb << " " << fw64BitTsLsb << "; " << cpuTsMsb << " " << cpuTsLsb << "\n";
                 while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
                   //                  std::this_thread::sleep_for(std::chrono::microseconds(10));
                 }
@@ -250,7 +252,7 @@ namespace SVD {
         while (!m_Unpackers[iFADC].PopFADCPayload(rEvent.m_Data[iFADC]))
           std::this_thread::sleep_for(std::chrono::microseconds(10));
         rEvent.m_Words += rEvent.m_Data[iFADC].size();
-      }      
+      }
       if (rEvent.m_Data.front().size() >= 4) {
         rEvent.m_recvTsCpu = rEvent.m_Data.front().back();
         rEvent.m_Data.front().pop_back();

@@ -61,7 +61,37 @@ word_t inline extractTsLe(word_t word) { return word & 0xFF; }; // TS_LE
 word_t inline extractPiggy(word_t word) {
   return (word >> 23) & 0x01;
 }; // piggy or base
-word_t inline extractOverFlowCnt(word_t word) { return word & 0xFF; }
+word_t inline extractOverFlowCnt(word_t word) { return word & 0x7FFFFF; }
+auto inline frameOvflw(ts_t sof, ts_t eof, bool generateEOF) {
+
+  /*
+   * To allow an overflowCounter of 38bit width it is split into SOF and EOF
+   * words in the following manner:
+   * SOF:
+   * 0xaf piggy/base -1-> [22..0] <-1-
+   * EOF:
+   * 0xE0 piggy/base -1->[37..23]<-1- -2->[7..0] <-2-
+   *
+   * The values marked in -1->x<-1- is the 38 bit ovflw counter
+   * [22..0] means bit 0 -> 22 of the 38 bit ovflw,
+   * these have to be combined with bit 37 - 23 in [37..23] to generate full 38
+   * bit
+   *
+   * In -2->y<-2- the value corresponds to the value of the 8 LSBs of the
+   * FPGA internal ovflwCnt at the time the EOF  arrived piggy/base is one bit
+   * to distingiush between data from piggy and base, not needed here
+   */
+  sof &= 0x7FFFFF; // upper 9 bit distinguish only SOF / EOF
+  eof &= 0x7FFFFF;
+  DefsMpw3::ts_t frameOvwfl = sof;
+  frameOvwfl |= ((eof & 0x3FFF00) >> 8) << 23;
+  if (generateEOF) {
+    // for the EOF ovflw counter we need to use the LSBs from the EOF word
+    frameOvwfl = (frameOvwfl >> 8) << 8; // clear LSBs from SOF
+    frameOvwfl |= eof & 0xff;            // set LSBs from EOF
+  }
+  return frameOvwfl;
+}
 
 bool inline isSOF(word_t word) {
   return word >> 24 == 0xAF;

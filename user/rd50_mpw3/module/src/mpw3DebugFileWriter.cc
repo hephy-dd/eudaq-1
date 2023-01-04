@@ -3,7 +3,7 @@
 #include "eudaq/FileWriter.hh"
 #include "eudaq/StdEventConverter.hh"
 
-#define PROCESS_PREPROCESSED
+//#define PROCESS_PREPROCESSED
 
 class Mpw3DbgFileWriter : public eudaq::FileWriter {
 public:
@@ -51,10 +51,20 @@ void Mpw3DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
   memcpy(data.data(), block.data(), block.size());
 
   static int wordCnt = 0;
+  DefsMpw3::word_t sof, eof;
   for (auto i : data) {
     wordCnt++;
     DefsMpw3::HitInfo hi(i);
     mOut << std::hex << i << " " << std::dec << hi.toStr() << "\n";
+
+    if (hi.sof) {
+      sof = hi.OvFlwCnt;
+    }
+    if (hi.eof) {
+      eof = hi.OvFlwCnt;
+      mOut << "combined ovflw SOF = " << DefsMpw3::frameOvflw(sof, eof, false)
+           << " EOF = " << DefsMpw3::frameOvflw(sof, eof, true) << "\n";
+    }
   }
 #else
   auto evstd = eudaq::StandardEvent::MakeShared();

@@ -57,7 +57,7 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
                   << "s; skipped " << skipCnt << " frames before\n";
         break;
       } else {
-        //              std::cout << "skipping " << currUdpTs << "\n";
+        //        std::cout << "skipping " << currUdpTs << "\n";
         skipCnt++;
       }
     }
@@ -128,11 +128,6 @@ eudaq::EventSPC Mpw3FileReader::GetNextEvent() {
 
 bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
 
-  static auto lastT = std::chrono::high_resolution_clock::now();
-  //  std::cout << "\rprocessing Frame #" << mFrameCnt << " Event #" <<
-  //  mEventCnt
-  //            << std::flush;
-
   if (frame == nullptr) {
     EUDAQ_DEBUG("frame to process == nullptr");
     return false;
@@ -166,12 +161,12 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
   rawData.resize(block.size() / sizeWord);
   memcpy(rawData.data(), block.data(), block.size());
 
-  uint32_t ovFlwSOF, ovFlwEOF;
+  uint32_t rawOvFlwSOF, rawOvFlwEOF;
 
   if (DefsMpw3::isSOF(rawData.front()) && DefsMpw3::isEOF(rawData.back())) {
     // first word is SOF and last word is EOF, so far seems to be valid
-    ovFlwSOF = DefsMpw3::extractOverFlowCnt(rawData.front());
-    ovFlwEOF = DefsMpw3::extractOverFlowCnt(rawData.back());
+    rawOvFlwSOF = DefsMpw3::extractOverFlowCnt(rawData.front());
+    rawOvFlwEOF = DefsMpw3::extractOverFlowCnt(rawData.back());
   } else {
     EUDAQ_WARN("invalid frame (not starting with SOF / not ending with EOF)");
     return false;
@@ -223,16 +218,15 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
     hit.tsLe = hi.tsLe;
     hit.tsTe = hi.tsTe;
     hit.isPiggy = hi.piggy;
-    hit.ovflwSOF = ovFlwSOF;
-    hit.ovflwEOF = ovFlwEOF;
-    hit.avgFrameOvflw = double(ovFlwEOF + ovFlwSOF) / 2.0;
-    hit.ovflwForCalc = ovFlwSOF;
+    hit.ovflwSOF = DefsMpw3::frameOvflw(rawOvFlwSOF, rawOvFlwEOF, false);
+    hit.ovflwEOF = DefsMpw3::frameOvflw(rawOvFlwSOF, rawOvFlwEOF, true);
+    hit.ovflwForCalc = hit.ovflwSOF;
     hit.originFrame = mFrameCnt;
     hit.pixIdx = hi.pixIdx;
+    std::cout << "ovflw sof = " << hit.ovflwSOF << " eof = " << hit.ovflwEOF
+              << "\n";
 
     int diffEOFvsSOF = int(hit.ovflwEOF) - int(hit.ovflwSOF);
-    diffEOFvsSOF = diffEOFvsSOF < 0 ? diffEOFvsSOF + 256
-                                    : diffEOFvsSOF; // account for overflow
 
     if (diffEOFvsSOF > 1) {
       //      EUDAQ_WARN("unreasonably big ovflw diff in SOF and EOF: " +
@@ -242,7 +236,7 @@ bool Mpw3FileReader::processFrame(const eudaq::EventUP &frame) {
       mGarbageCnt++;
       return false;
     } else if (diffEOFvsSOF == 1) {
-        mOvflwSofVsEof++;
+      mOvflwSofVsEof++;
       hit.inMoreThan1Evt = true;
     }
 

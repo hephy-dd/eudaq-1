@@ -14,7 +14,6 @@ public:
 private:
   struct Hit {
     DefsMpw3::ts_t ovflwSOF, ovflwEOF, ovflwForCalc;
-    double avgFrameOvflw;
     uint8_t dcol;
     uint8_t pix;
     uint8_t tsLe;
