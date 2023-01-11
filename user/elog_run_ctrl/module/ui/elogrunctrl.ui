@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>714</width>
+    <width>976</width>
     <height>454</height>
    </rect>
   </property>
@@ -15,15 +15,24 @@
   </property>
   <layout class="QGridLayout" name="gridLayout_2">
    <item row="0" column="0">
-    <layout class="QGridLayout" name="gridLayout" columnstretch="5,0">
-     <item row="0" column="1">
-      <widget class="QPushButton" name="pbSubmit">
+    <layout class="QGridLayout" name="gridLayout" rowstretch="0,0,0,0,0" columnstretch="5,0,0">
+     <item row="2" column="1">
+      <widget class="QCheckBox" name="cbAutoSubmit">
+       <property name="toolTip">
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enable auto submission of elog entry when a run is stopped&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       </property>
        <property name="text">
-        <string>Submit</string>
+        <string>Auto Submit</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
        </property>
       </widget>
      </item>
-     <item row="0" column="0">
+     <item row="4" column="0">
+      <widget class="QTextEdit" name="teMessage"/>
+     </item>
+     <item row="0" column="0" rowspan="4">
       <widget class="QTableWidget" name="twAtt">
        <property name="columnCount">
         <number>2</number>
@@ -40,11 +49,31 @@
        </column>
       </widget>
      </item>
-     <item row="1" column="0">
-      <widget class="QTextEdit" name="teMessage"/>
+     <item row="3" column="1">
+      <spacer name="verticalSpacer">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>40</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item row="4" column="1">
+      <widget class="QTextBrowser" name="tbLog"/>
      </item>
      <item row="1" column="1">
-      <widget class="QTextBrowser" name="tbLog"/>
+      <widget class="QPushButton" name="pbSubmit">
+       <property name="toolTip">
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Submit Elog message manually&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       </property>
+       <property name="text">
+        <string>Manual Submit</string>
+       </property>
+      </widget>
      </item>
     </layout>
    </item>

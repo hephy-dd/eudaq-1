@@ -31,9 +31,18 @@ void ElogRunCtrl::Initialise() {
 
 void ElogRunCtrl::Configure() { RunControl::Configure(); }
 
-void ElogRunCtrl::StartRun() { RunControl::StartRun(); }
+void ElogRunCtrl::StartRun() {
+  RunControl::StartRun();
+  mStartTime = QDateTime::currentDateTime();
+}
 
-void ElogRunCtrl::StopRun() { RunControl::StopRun(); }
+void ElogRunCtrl::StopRun() {
+  RunControl::StopRun();
+  mStopTime = QDateTime::currentDateTime();
+  if (ui->cbAutoSubmit->isChecked()) {
+    submit(true);
+  }
+}
 
 void ElogRunCtrl::Exec() { RunControl::Exec(); }
 
@@ -42,7 +51,12 @@ void ElogRunCtrl::Reset() {
   mElog.reset();
 }
 
-void ElogRunCtrl::submit() {
+void ElogRunCtrl::Terminate() {
+  RunControl::Terminate();
+  close();
+}
+
+void ElogRunCtrl::submit(bool autoSubmit) {
   using Att = QPair<QString, QString>;
   QList<Att> attributes;
   for (int i = 0; i < ui->twAtt->rowCount(); i++) {
@@ -64,11 +78,23 @@ void ElogRunCtrl::submit() {
     }
     attributes << att;
   }
-  auto succ = mElog.submitEntry(attributes, ui->teMessage->toPlainText());
+  auto msg = ui->teMessage->toPlainText();
+  if (autoSubmit) {
+    msg = QString("automatic log for run %1").arg(GetRunN());
+  }
+  auto succ = mElog.submitEntry(attributes, msg, autoSubmit, GetRunN(),
+                                mStartTime.toString("dd.MM.yyyy hh:mm:ss"),
+                                mStopTime.toString("dd.MM.yyyy hh:mm:ss"));
   if (succ) {
-    ui->tbLog->insertPlainText(
-        QString("Sent log: %1\n")
-            .arg(QTime::currentTime().toString("hh:mm:ss")));
+    if (autoSubmit) {
+      ui->tbLog->insertPlainText(
+          QString("Sent auto log: %1\n")
+              .arg(QTime::currentTime().toString("hh:mm:ss")));
+    } else {
+      ui->tbLog->insertPlainText(
+          QString("Sent manual log: %1\n")
+              .arg(QTime::currentTime().toString("hh:mm:ss")));
+    }
   } else {
     ui->tbLog->insertPlainText(
         QString("Error sending log: %1\n")
@@ -106,6 +132,15 @@ void ElogRunCtrl::elogSetup() {
 
   auto keys = ini->Keylist();
 
+  auto startTAtt = ini->Get("att_start_time", "Start-Time");
+  auto stopTAtt = ini->Get("att_stop_time", "Stop-Time");
+  auto runNmbAtt = ini->Get("att_run_number", "Run-ID");
+  mElog.setAttStopT(stopTAtt.c_str());
+  mElog.setAttStartT(startTAtt.c_str());
+  mElog.setAttRunNmb(runNmbAtt.c_str());
+  QStringList specialAtt;
+  specialAtt << mElog.attRunNmb() << mElog.attStartT() << mElog.attStopT();
+
   /* look for specified options for the attributes
    * each option line looks something like:
    * "Options Type = Routine, Software Installation, Problem Fixed,
@@ -124,12 +159,15 @@ void ElogRunCtrl::elogSetup() {
       continue;
     }
     auto att = match.captured(1); // attribute to which the options apply
-
     auto attOpt = parseElogCfgLine(ini->Get(k, ""));
     options[att] = attOpt;
   }
 
   foreach (const auto &a, atts) {
+    if (specialAtt.contains(a)) {
+      // skip special attributes used for auto Elog submission
+      continue;
+    }
     Attribute attribute;
     attribute.name = a;
     attribute.options =

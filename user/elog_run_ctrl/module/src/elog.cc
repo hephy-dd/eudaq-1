@@ -22,7 +22,8 @@ uint32_t Elog::port() const { return mPort; }
 void Elog::setPort(uint32_t newPort) { mPort = newPort; }
 
 bool Elog::submitEntry(const QList<QPair<QString, QString>> &attributes,
-                       const QString &message) {
+                       const QString &message, bool autoSubmit, int runNmb,
+                       const QString &startTime, const QString &stopTime) {
   QFile msgFile(tmpFile);
   if (!msgFile.open(QIODevice::WriteOnly)) {
     qWarning("error opening temp file");
@@ -47,6 +48,12 @@ bool Elog::submitEntry(const QList<QPair<QString, QString>> &attributes,
      */
     args << "-a" << QString("%1=%2").arg(att.first, att.second);
   }
+  if (autoSubmit) {
+    args << "-a" << QString("%1=%2").arg(mAttStartT, startTime);
+    args << "-a" << QString("%1=%2").arg(mAttStopT, stopTime);
+    args << "-a" << QString("%1=%2").arg(mAttRunNmb, QString::number(runNmb));
+  }
+  qDebug() << args << runNmb;
   mProc.setArguments(args);
   mProc.start();
   auto finished = mProc.waitForFinished(5000);
@@ -80,4 +87,20 @@ bool Elog::reset() { return mProc.reset(); }
 
 void Elog::debugPrint() {
   qDebug() << mPort << mLogbook << mHost << mProc.program();
+}
+
+const QString &Elog::attStartT() const { return mAttStartT; }
+
+void Elog::setAttStartT(const QString &newAttStartT) {
+  mAttStartT = newAttStartT;
+}
+
+const QString &Elog::attStopT() const { return mAttStopT; }
+
+void Elog::setAttStopT(const QString &newAttStopT) { mAttStopT = newAttStopT; }
+
+const QString &Elog::attRunNmb() const { return mAttRunNmb; }
+
+void Elog::setAttRunNmb(const QString &newAttRunNmb) {
+  mAttRunNmb = newAttRunNmb;
 }

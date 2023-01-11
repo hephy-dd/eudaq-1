@@ -6,6 +6,7 @@
 
 #include <QWidget>
 #include <QMap>
+#include <QDateTime>
 
 namespace Ui {
 class ElogRunCtrl;
@@ -25,11 +26,12 @@ public:
     void StopRun() override;
     void Exec() override;
     void Reset() override;
+    void Terminate() override;
 
     static const uint32_t m_id_factory = eudaq::cstr2hash("ElogRC");
 
 private slots:
-    void submit();
+    void submit(bool autoSubmit = false);
 
 private:
     struct Attribute{
@@ -48,6 +50,7 @@ private:
     Ui::ElogRunCtrl *ui;    
     AttList mAttributes;
     Elog mElog;
+    QDateTime mStartTime, mStopTime;
 };
 
 #endif // ELOGRUNCTRL_H
