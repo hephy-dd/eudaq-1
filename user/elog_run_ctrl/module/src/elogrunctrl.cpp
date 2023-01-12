@@ -29,7 +29,11 @@ void ElogRunCtrl::Initialise() {
   populateUi();
 }
 
-void ElogRunCtrl::Configure() { RunControl::Configure(); }
+void ElogRunCtrl::Configure() {
+  RunControl::Configure();
+  // store path to config file for later attaching it to log
+  mConfigFile = GetConfiguration()->Name().c_str();
+}
 
 void ElogRunCtrl::StartRun() {
   RunControl::StartRun();
@@ -82,9 +86,10 @@ void ElogRunCtrl::submit(bool autoSubmit) {
   if (autoSubmit) {
     msg = QString("automatic log for run %1").arg(GetRunN());
   }
-  auto succ = mElog.submitEntry(attributes, msg, autoSubmit, GetRunN(),
-                                mStartTime.toString("dd.MM.yyyy hh:mm:ss"),
-                                mStopTime.toString("dd.MM.yyyy hh:mm:ss"));
+  auto succ =
+      mElog.submitEntry(attributes, msg, autoSubmit, GetRunN(),
+                        mStartTime.toString("dd.MM.yyyy hh:mm:ss"),
+                        mStopTime.toString("dd.MM.yyyy hh:mm:ss"), mConfigFile);
   if (succ) {
     if (autoSubmit) {
       ui->tbLog->insertPlainText(

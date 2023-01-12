@@ -51,6 +51,7 @@ private:
     AttList mAttributes;
     Elog mElog;
     QDateTime mStartTime, mStopTime;
+    QString mConfigFile;
 };
 
 #endif // ELOGRUNCTRL_H

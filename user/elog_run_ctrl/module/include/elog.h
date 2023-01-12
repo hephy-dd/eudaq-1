@@ -21,7 +21,7 @@ public:
   bool submitEntry(const QList<QPair<QString, QString>> &attributes,
                    const QString &message, bool autoSubmit = false,
                    int runNmb = -1, const QString &startTime = QString(),
-                   const QString &stopTime = QString());
+                   const QString &stopTime = QString(), const QString &configFile = QString());
 
   bool reset();
   void debugPrint();
