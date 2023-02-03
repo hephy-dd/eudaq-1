@@ -105,8 +105,6 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
       // simply put data in event, StandardEventConverter got time to extract
       // triggerNr, pixelHit,...
 
-      std::cout << " fw = " << frame.m_recvTsFw
-                << " cpu = " << frame.m_recvTsCpu << "\n";
       euEvent->SetTag("recvTS_FW", frame.m_recvTsFw);
       euEvent->SetTag("recvTS_CPU", frame.m_recvTsCpu);
       for (int i = 0; i < frame.m_Data.size(); i++) {
