@@ -59,7 +59,6 @@ bool Elog::submitEntry(const QList<QPair<QString, QString>> &attributes,
       args << "-f" << configFile;
     }
   }
-  qDebug() << args << runNmb;
   mProc.setArguments(args);
   mProc.start();
   auto finished = mProc.waitForFinished(5000);
