@@ -188,6 +188,8 @@ void ElogRunCtrl::elogSetup() {
   mElog.setHost(ini->Get("elog_host", "localhost").c_str());
   mElog.setPort(ini->Get("elog_port", 8080));
   mElog.setLogbook(ini->Get("elog_logbook", "").c_str());
+  mElog.setUser(ini->Get("user", "").c_str());
+  mElog.setPass(ini->Get("password", "").c_str());
 }
 
 QStringList ElogRunCtrl::parseElogCfgLine(const std::string &key) {

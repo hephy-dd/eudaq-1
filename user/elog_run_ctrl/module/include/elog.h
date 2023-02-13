@@ -17,6 +17,8 @@ public:
   void setElogProgramPath(const QString &path);
   uint32_t port() const;
   void setPort(uint32_t newPort);
+  void setUser(const QString &newUser);
+  void setPass(const QString &newPass);
 
   bool submitEntry(const QList<QPair<QString, QString>> &attributes,
                    const QString &message, bool autoSubmit = false,

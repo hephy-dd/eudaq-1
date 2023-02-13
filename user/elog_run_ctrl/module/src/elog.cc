@@ -3,7 +3,8 @@
 #include <QDebug>
 #include <QFile>
 
-Elog::Elog(QObject *parent) : QObject{parent} {}
+Elog::Elog(QObject *parent) : QObject{parent} {
+}
 
 Elog::~Elog() {}
 
@@ -59,7 +60,11 @@ bool Elog::submitEntry(const QList<QPair<QString, QString>> &attributes,
       args << "-f" << configFile;
     }
   }
-  qDebug() << args << runNmb;
+
+  if (!mUser.isEmpty() && !mPass.isEmpty()) {
+      args << "-u" << mUser << mPass;
+      args << "-s";
+  }
   mProc.setArguments(args);
   mProc.start();
   auto finished = mProc.waitForFinished(5000);
@@ -108,5 +113,14 @@ void Elog::setAttStopT(const QString &newAttStopT) { mAttStopT = newAttStopT; }
 const QString &Elog::attRunNmb() const { return mAttRunNmb; }
 
 void Elog::setAttRunNmb(const QString &newAttRunNmb) {
-  mAttRunNmb = newAttRunNmb;
+    mAttRunNmb = newAttRunNmb;
+}
+
+void Elog::setUser(const QString &newUser)
+{
+    mUser = newUser;
+}
+void Elog::setPass(const QString &newPass)
+{
+    mPass = newPass;
 }
