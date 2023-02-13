@@ -60,7 +60,7 @@ bool Elog::submitEntry(const QList<QPair<QString, QString>> &attributes,
       args << "-f" << configFile;
     }
   }
-
+  
   if (!mUser.isEmpty() && !mPass.isEmpty()) {
       args << "-u" << mUser << mPass;
       args << "-s";
