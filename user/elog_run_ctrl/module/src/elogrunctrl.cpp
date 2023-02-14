@@ -155,12 +155,14 @@ void ElogRunCtrl::elogSetup() {
    * the options "Routine", "Software Installation",... (you get it ;) )
    */
 
-  QRegularExpression optionRegex(R"(Options (\w+))");
+  QRegularExpression optionRegex(R"(Options (.+))");
   QMap<QString, QStringList> options;
   for (const auto &k : keys) {
+    qDebug() << k.c_str();
     auto match = optionRegex.match(k.c_str());
     if (!match.hasMatch()) {
       // the current ini key does not indicate an attribute option
+      qDebug() << "no match";
       continue;
     }
     auto att = match.captured(1); // attribute to which the options apply
