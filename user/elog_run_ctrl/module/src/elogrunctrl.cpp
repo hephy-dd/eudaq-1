@@ -87,7 +87,7 @@ void ElogRunCtrl::submit(bool autoSubmit) {
     msg = QString("automatic log for run %1").arg(GetRunN());
   }
   auto succ =
-      mElog.submitEntry(attributes, msg, autoSubmit, GetRunN(),
+      mElog.submitEntry(attributes, msg, autoSubmit, GetRunN(), eventsCurrRun(),
                         mStartTime.toString("dd.MM.yyyy hh:mm:ss"),
                         mStopTime.toString("dd.MM.yyyy hh:mm:ss"), mConfigFile);
   if (succ) {
@@ -137,12 +137,16 @@ void ElogRunCtrl::elogSetup() {
 
   auto keys = ini->Keylist();
 
+  mEventCntConn = ini->Get("event_cnt_conn", "").c_str();
+
   auto startTAtt = ini->Get("att_start_time", "Start-Time");
   auto stopTAtt = ini->Get("att_stop_time", "Stop-Time");
   auto runNmbAtt = ini->Get("att_run_number", "Run-ID");
+  auto nEventAtt = ini->Get("att_event_cnt", "");
   mElog.setAttStopT(stopTAtt.c_str());
   mElog.setAttStartT(startTAtt.c_str());
   mElog.setAttRunNmb(runNmbAtt.c_str());
+  mElog.setAttEventCnt(nEventAtt.c_str());
   QStringList specialAtt;
   specialAtt << mElog.attRunNmb() << mElog.attStartT() << mElog.attStopT();
 
@@ -162,7 +166,6 @@ void ElogRunCtrl::elogSetup() {
     auto match = optionRegex.match(k.c_str());
     if (!match.hasMatch()) {
       // the current ini key does not indicate an attribute option
-      qDebug() << "no match";
       continue;
     }
     auto att = match.captured(1); // attribute to which the options apply
@@ -204,4 +207,29 @@ QStringList ElogRunCtrl::parseElogCfgLine(const std::string &key) {
     i = i.trimmed();
   }
   return list;
+}
+
+int ElogRunCtrl::eventsCurrRun() {
+  auto conns = GetActiveConnectionStatusMap();
+  for (const auto &conn : conns) {
+    qDebug() << conn.first->GetName().c_str();
+    // look for the connection from which we should extract number of events
+    if (mEventCntConn != conn.first->GetName().c_str()) {
+      continue;
+    }
+    auto tags = conn.second->GetTags();
+    for (const auto &tag : tags) {
+      // tag EventN specifies the number of events during the current run
+      if (QString(tag.first.c_str()).trimmed() != "EventN") {
+        continue;
+      }
+      bool ok;
+      QString tmp(tag.second.c_str());
+      auto eventCnt = tmp.toInt(&ok);
+      if (ok) {
+        return eventCnt;
+      }
+    }
+  }
+  return -1;
 }

@@ -3,8 +3,7 @@
 #include <QDebug>
 #include <QFile>
 
-Elog::Elog(QObject *parent) : QObject{parent} {
-}
+Elog::Elog(QObject *parent) : QObject{parent} {}
 
 Elog::~Elog() {}
 
@@ -24,8 +23,8 @@ void Elog::setPort(uint32_t newPort) { mPort = newPort; }
 
 bool Elog::submitEntry(const QList<QPair<QString, QString>> &attributes,
                        const QString &message, bool autoSubmit, int runNmb,
-                       const QString &startTime, const QString &stopTime,
-                       const QString &configFile) {
+                       int nEvents, const QString &startTime,
+                       const QString &stopTime, const QString &configFile) {
   QFile msgFile(tmpFile);
   if (!msgFile.open(QIODevice::WriteOnly)) {
     qWarning("error opening temp file");
@@ -54,16 +53,18 @@ bool Elog::submitEntry(const QList<QPair<QString, QString>> &attributes,
     args << "-a" << QString("%1=%2").arg(mAttStartT, startTime);
     args << "-a" << QString("%1=%2").arg(mAttStopT, stopTime);
     args << "-a" << QString("%1=%2").arg(mAttRunNmb, QString::number(runNmb));
+    args << "-a"
+         << QString("%1=%2").arg(mAttEventCnt, QString::number(nEvents));
 
     // attach config file to the log message
     if (!configFile.isEmpty()) {
       args << "-f" << configFile;
     }
   }
-  
+
   if (!mUser.isEmpty() && !mPass.isEmpty()) {
-      args << "-u" << mUser << mPass;
-      args << "-s";
+    args << "-u" << mUser << mPass;
+    args << "-s";
   }
   mProc.setArguments(args);
   mProc.start();
@@ -113,14 +114,14 @@ void Elog::setAttStopT(const QString &newAttStopT) { mAttStopT = newAttStopT; }
 const QString &Elog::attRunNmb() const { return mAttRunNmb; }
 
 void Elog::setAttRunNmb(const QString &newAttRunNmb) {
-    mAttRunNmb = newAttRunNmb;
+  mAttRunNmb = newAttRunNmb;
 }
 
-void Elog::setUser(const QString &newUser)
-{
-    mUser = newUser;
+QString Elog::attEventCnt() const { return mAttEventCnt; }
+
+void Elog::setAttEventCnt(const QString &newAttEventCnt) {
+  mAttEventCnt = newAttEventCnt;
 }
-void Elog::setPass(const QString &newPass)
-{
-    mPass = newPass;
-}
+
+void Elog::setUser(const QString &newUser) { mUser = newUser; }
+void Elog::setPass(const QString &newPass) { mPass = newPass; }

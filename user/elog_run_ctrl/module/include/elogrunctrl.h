@@ -44,6 +44,7 @@ private:
     void populateUi();
     void elogSetup();
     QStringList parseElogCfgLine(const std::string &key);
+    int eventsCurrRun();
 
 
 
@@ -52,6 +53,7 @@ private:
     Elog mElog;
     QDateTime mStartTime, mStopTime;
     QString mConfigFile;
+    QString mEventCntConn;
 };
 
 #endif // ELOGRUNCTRL_H

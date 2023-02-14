@@ -22,7 +22,7 @@ public:
 
   bool submitEntry(const QList<QPair<QString, QString>> &attributes,
                    const QString &message, bool autoSubmit = false,
-                   int runNmb = -1, const QString &startTime = QString(),
+                   int runNmb = -1, int nEvents = 0, const QString &startTime = QString(),
                    const QString &stopTime = QString(), const QString &configFile = QString());
 
   bool reset();
@@ -37,10 +37,13 @@ public:
   const QString &attRunNmb() const;
   void setAttRunNmb(const QString &newAttRunNmb);
 
+  QString attEventCnt() const;
+  void setAttEventCnt(const QString &newAttEventCnt);
+
 private:
   const QString tmpFile = "/tmp/elog_msg";
   QProcess mProc;
-  QString mHost, mLogbook, mUser, mPass, mAttStartT, mAttStopT, mAttRunNmb;
+  QString mHost, mLogbook, mUser, mPass, mAttStartT, mAttStopT, mAttRunNmb, mAttEventCnt;
   uint32_t mPort;
 };
 
