@@ -38,6 +38,7 @@ void ElogRunCtrl::Configure() {
 void ElogRunCtrl::StartRun() {
   RunControl::StartRun();
   mStartTime = QDateTime::currentDateTime();
+  mCurrRunN = GetRunN();
 }
 
 void ElogRunCtrl::StopRun() {
@@ -84,10 +85,10 @@ void ElogRunCtrl::submit(bool autoSubmit) {
   }
   auto msg = ui->teMessage->toPlainText();
   if (autoSubmit) {
-    msg = QString("automatic log for run %1").arg(GetRunN());
+    msg = QString("automatic log for run %1").arg(mCurrRunN);
   }
   auto succ =
-      mElog.submitEntry(attributes, msg, autoSubmit, GetRunN(), eventsCurrRun(),
+      mElog.submitEntry(attributes, msg, autoSubmit, mCurrRunN, eventsCurrRun(),
                         mStartTime.toString("dd.MM.yyyy hh:mm:ss"),
                         mStopTime.toString("dd.MM.yyyy hh:mm:ss"), mConfigFile);
   if (succ) {
