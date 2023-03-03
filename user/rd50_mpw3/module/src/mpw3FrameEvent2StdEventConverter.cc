@@ -7,17 +7,24 @@ public:
   bool Converting(eudaq::EventSPC d1, eudaq::StdEventSP d2,
                   eudaq::ConfigSPC conf) const override;
   static const uint32_t m_id_factory = eudaq::cstr2hash("Mpw3FrameEvent");
+  static bool foundT0;
 };
 
+bool Mpw3FrameEvent2StdEventConverter::foundT0 = false;
+
 namespace {
-  auto dummy0 = eudaq::Factory<eudaq::StdEventConverter>::Register<
-      Mpw3FrameEvent2StdEventConverter>(
-      Mpw3FrameEvent2StdEventConverter::m_id_factory);
+auto dummy0 = eudaq::Factory<eudaq::StdEventConverter>::Register<
+    Mpw3FrameEvent2StdEventConverter>(
+    Mpw3FrameEvent2StdEventConverter::m_id_factory);
 }
 
 bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
                                                   eudaq::StdEventSP d2,
                                                   eudaq::ConfigSPC conf) const {
+  double t0 = -1.0;
+  if (conf != nullptr) {
+    t0 = conf->Get("t0_skip_time", -1.0);
+  }
   auto ev = std::dynamic_pointer_cast<const eudaq::RawEvent>(d1);
 
   for (int i = 0; i < ev->NumBlocks(); i++) {
@@ -84,10 +91,23 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
     if (sofCnt == 1 && eofCnt == 1) {
       auto sofOvflw = DefsMpw3::frameOvflw(sofWord, eofWord, false);
       auto eofOvflw = DefsMpw3::frameOvflw(sofWord, eofWord, true);
-      d2->SetTimeBegin((sofOvflw * DefsMpw3::dTPerOvflw + avgTsLe) *
-                       DefsMpw3::lsbTime);
-      d2->SetTimeEnd((eofOvflw * DefsMpw3::dTPerOvflw + avgTsTe) *
-                     DefsMpw3::lsbTime);
+      uint64_t timeBegin =
+          (sofOvflw * DefsMpw3::dTPerOvflw + avgTsLe) * DefsMpw3::lsbTime;
+      uint64_t timeEnd =
+          (eofOvflw * DefsMpw3::dTPerOvflw + avgTsTe) * DefsMpw3::lsbTime;
+
+      if (t0 < 0.0) {
+        foundT0 = true;
+      } else if (timeBegin < uint64_t(t0)) {
+        foundT0 = true;
+      }
+
+      if (!foundT0) {
+        return false;
+      }
+
+      d2->SetTimeBegin(timeBegin);
+      d2->SetTimeEnd(timeEnd);
       //      std::cout << "set time begin = " << d2->GetTimeBegin()
       //                << " end = " << d2->GetTimeEnd() << "\n";
     } else {
