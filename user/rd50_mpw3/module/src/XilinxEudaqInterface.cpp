@@ -259,28 +259,13 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
       const auto offset = fadc.size();
       fadc.resize(offset + std::distance(itCurrTrg, itNextTrg));
       std::copy(itCurrTrg, itNextTrg, fadc.begin() + offset);
-      //      std::cout << "copied " << std::distance(itCurrTrg, itNextTrg)
-      //                << " offset " << offset << " curr " << *itCurrTrg << "
-      //                next "
-      //                << *itNextTrg << "\n"
-      //                << " data = ";
-
-      //      for (auto w = itCurrTrg; w < itNextTrg; w++) {
-      //        std::cout << *w << " ";
-      //      }
-      //      std::cout << "\n";
 
       if (Unpacker::IsTriggerHeader(fadc.front())) {
-        //        fadc.push_back(fw64BitTsMsb);
+        fadc.push_back(fw64BitTsMsb);
 
-        //        fadc.push_back(fw64BitTsLsb);
-        //        fadc.push_back(cpuTsMsb);
-        //        fadc.push_back(cpuTsLsb);
-
-        //        std::cout << "pushing FADC\n";
-        //        for (const auto &w : fadc) {
-        //          std::cout << w << " ";
-        //        }
+        fadc.push_back(fw64BitTsLsb);
+        fadc.push_back(cpuTsMsb);
+        fadc.push_back(cpuTsLsb);
 
         while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
           // retry until success or somebody wants to stop us
