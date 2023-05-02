@@ -103,7 +103,7 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
   SVD::XLNX_CTRL::Event_t frame;
   uint32_t nEuEvent = 0;
   auto euEvent = eudaq::Event::MakeShared("Mpw3FrameEvent");
-  int triggerOvflw = 0, oldTrgN = 0;
+  uint64_t triggerOvflw = 0, oldTrgN = 0;
 
   while (mEventBuilderRunning->load(std::memory_order_acquire)) {
     if ((*mEventMerger)(frame)) {
@@ -112,7 +112,7 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
 
       euEvent->SetTag("recvTS_FW", frame.m_recvTsFw);
       euEvent->SetTag("recvTS_CPU", frame.m_recvTsCpu);
-      auto currTrgN = frame.m_EventNr;
+      uint64_t currTrgN = frame.m_EventNr;
 
       if (currTrgN < oldTrgN) {
         triggerOvflw++;
@@ -122,7 +122,7 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
       // in case you are wondering, yes TLU has only 15 bits, but we don't
       // sample triggerN from TLU but increment own counter in FPGA
       currTrgN += triggerOvflw * (1 << 16);
-      std::cout << currTrgN << "\n";
+      std::cout << "trg = " << currTrgN << "\n";
       oldTrgN = currTrgN;
       euEvent->SetTriggerN(currTrgN);
       for (int i = 0; i < frame.m_Data.size(); i++) {

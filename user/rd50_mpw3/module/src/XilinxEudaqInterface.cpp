@@ -231,19 +231,50 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
        */
 
       // if we still have data buffered from the last frame
-      auto itCurrTrg =
-          fadc.empty() ? std::find_if(frame.begin(), frame.end(),
-                                      &Unpacker::IsTriggerHeader)
-                       // when no data buffered we look for 1st trigger word
-                       // enclosed pack in current frame
-                       : frame.begin(); // trigger pack was not closed before,
-                                        // all data from very beginning belongs
-                                        // to trigger pack from previous frame
-      //      std::cout << "trigger found: " << *itCurrTrg << "\n";
-      //      for (const auto &word : frame) {
-      //        std::cout << std::hex << word << " ";
+
+      //      std::cout << "fadc frame = "
+      //                << "\n"
+      //                << std::hex;
+      //      for (auto w : fadc) {
+      //        std::cout << w << " ";
       //      }
-      //      std::cout << "\n";
+      //      std::cout << "\n" << std::dec;
+
+      auto itCurrTrg =
+          std::find_if(frame.begin(), frame.end(), &Unpacker::IsTriggerHeader);
+
+      //      std::cout << "new frame trg = " << extractTriggerN(*itCurrTrg)
+      //                << " begin = " << extractTriggerN(frame.front()) <<
+      //                "\n";
+
+      if (!fadc.empty()) {
+        const auto offset = fadc.size();
+        fadc.resize(offset + std::distance(frame.begin(), itCurrTrg));
+        if (!IsTriggerHeader(frame.front())) {
+          std::copy(frame.begin(), itCurrTrg, fadc.begin() + offset);
+        } else {
+          // the new frame instantly starts with a trigger word => buffered
+          // package now is closed and we ship it immediately
+          fadc.push_back(fw64BitTsMsb);
+          fadc.push_back(fw64BitTsLsb);
+          fadc.push_back(cpuTsMsb);
+          fadc.push_back(cpuTsLsb);
+
+          itCurrTrg = frame.begin();
+
+          //          std::cout << "instant delivery\n";
+
+          //          for (auto w : fadc) {
+          //            std::cout << w << " ";
+          //          }
+          //          std::cout << "\n";
+
+          while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
+            // retry until success or somebody wants to stop us
+          }
+          fadc.clear();
+        }
+      }
 
       if (itCurrTrg == frame.end()) {
         m_euLogger->SendLogMessage(eudaq::LogMessage(
@@ -251,21 +282,25 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
             eudaq::LogMessage::LVL_WARN));
         continue;
       }
+
       auto itNextTrg =
           std::find_if(itCurrTrg + 1, frame.end(), &Unpacker::IsTriggerHeader);
-
-      //      std::cout << "next trigger " << *itNextTrg << "\n";
 
       const auto offset = fadc.size();
       fadc.resize(offset + std::distance(itCurrTrg, itNextTrg));
       std::copy(itCurrTrg, itNextTrg, fadc.begin() + offset);
 
       if (Unpacker::IsTriggerHeader(fadc.front())) {
-        fadc.push_back(fw64BitTsMsb);
 
+        fadc.push_back(fw64BitTsMsb);
         fadc.push_back(fw64BitTsLsb);
         fadc.push_back(cpuTsMsb);
         fadc.push_back(cpuTsLsb);
+
+        //        for (auto w : fadc) {
+        //          std::cout << w << " ";
+        //        }
+        //        std::cout << "\n";
 
         while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
           // retry until success or somebody wants to stop us
@@ -283,11 +318,11 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
                                  &Unpacker::IsTriggerHeader);
 
         fadc.resize(std::distance(itCurrTrg, itNextTrg));
-        std::copy(itCurrTrg, itNextTrg, std::begin(fadc));
+        std::copy(itCurrTrg, itNextTrg, fadc.begin());
 
         if (Unpacker::IsTriggerHeader(*itNextTrg)) {
-          // that's what we searched for so it must be a trigger word, just to
-          // be save
+          // is our trigger-word enclosed package closed? if yes push it to next
+          // level, otherwise continue to fill it in next loop
           fadc.push_back(fw64BitTsMsb);
           fadc.push_back(fw64BitTsLsb);
           fadc.push_back(cpuTsMsb);
@@ -355,7 +390,8 @@ bool FADCGbEMerger::operator()(Event_t &rEvent) noexcept {
     rEvent.m_Data.front().pop_back();
     rEvent.m_recvTsFw |= uint64_t(rEvent.m_Data.front().back()) << 32;
     rEvent.m_Data.front().pop_back();
-    rEvent.m_EventNr = rEvent.m_Data.front().front() & 0xFFFF;
+    rEvent.m_EventNr =
+        UPDDetails::Unpacker::extractTriggerN(rEvent.m_Data.front().front());
   } else {
     m_euLogger->SendLogMessage(
         eudaq::LogMessage("frame too small for TS extraction in merger: " +

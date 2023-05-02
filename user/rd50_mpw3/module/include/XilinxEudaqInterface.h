@@ -109,6 +109,9 @@ public:
 
   UPDDetails::SyncMode syncMode() const;
   void setSyncMode(UPDDetails::SyncMode newSyncMode);
+  static inline auto extractTriggerN(const Defs::VMEData_t &rWord) noexcept {
+      return rWord & 0xFFFF;
+  }
 
 private:
   static constexpr auto m_gName = "UDPUnpacker";
