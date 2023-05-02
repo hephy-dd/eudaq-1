@@ -112,18 +112,19 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
 
       euEvent->SetTag("recvTS_FW", frame.m_recvTsFw);
       euEvent->SetTag("recvTS_CPU", frame.m_recvTsCpu);
-      uint64_t currTrgN = frame.m_EventNr;
-
-      if (currTrgN < oldTrgN) {
-        triggerOvflw++;
-      }
 
       // take overflow into account, trigger comes with 16 bit precision
       // in case you are wondering, yes TLU has only 15 bits, but we don't
       // sample triggerN from TLU but increment own counter in FPGA
-      currTrgN += triggerOvflw * (1 << 16);
-      std::cout << "trg = " << currTrgN << "\n";
+      uint64_t currTrgN = frame.m_EventNr + triggerOvflw * (1 << 16);
+      if (currTrgN < oldTrgN) {
+        triggerOvflw++;
+        currTrgN = frame.m_EventNr +
+                   triggerOvflw * (1 << 16); // update current trigger
+      }
       oldTrgN = currTrgN;
+
+      std::cout << "trg = " << currTrgN << "\n";
       euEvent->SetTriggerN(currTrgN);
       for (int i = 0; i < frame.m_Data.size(); i++) {
         euEvent->AddBlock(i, frame.m_Data[i]);
