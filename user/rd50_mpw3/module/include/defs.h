@@ -62,6 +62,7 @@ word_t inline extractPiggy(word_t word) {
   return (word >> 23) & 0x01;
 }; // piggy or base
 word_t inline extractOverFlowCnt(word_t word) { return word & 0x7FFFFF; }
+word_t inline extractTriggerNmb(word_t word) { return word & 0xFFFF; }
 auto inline frameOvflw(ts_t sof, ts_t eof, bool generateEOF) {
 
   /*
@@ -99,6 +100,7 @@ bool inline isSOF(word_t word) {
 bool inline isEOF(word_t word) {
   return word >> 24 == 0xE0;
 } // is given word End Of Frame?
+bool inline isTrigger(word_t word) { return word >> 16 == 0xFFFF; }
 
 static inline PixelIndex dColIdx2Pix(size_t dcol, size_t pix) {
   /*
@@ -143,8 +145,8 @@ static inline PixelIndex dColIdx2Pix(size_t dcol, size_t pix) {
 
 struct HitInfo {
   word_t dcol, pix, tsTe, tsLe, OvFlwCnt, initialWord;
-  int tot;
-  bool sof, eof, piggy;
+  int tot, triggerNmb = -1;
+  bool sof, eof, piggy, hitWord;
   PixelIndex pixIdx;
   HitInfo(word_t word) {
     initialWord = word;
@@ -155,6 +157,11 @@ struct HitInfo {
     calcTot();
 
     OvFlwCnt = extractOverFlowCnt(word);
+    if (isTrigger(word)) {
+      triggerNmb = int(extractTriggerNmb(word));
+      hitWord = false;
+      eof = sof = false;
+    }
     sof = isSOF(word);
     eof = isEOF(word);
     piggy = extractPiggy(word) > 0 ? true : false;

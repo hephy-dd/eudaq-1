@@ -2,9 +2,9 @@
 #include "mpw3_datacollector.h"
 
 namespace {
-  auto dummy0 = eudaq::Factory<eudaq::DataCollector>::Register<
-      Mpw3FastDataCollector, const std::string &, const std::string &>(
-      Mpw3FastDataCollector::m_id_factory);
+auto dummy0 = eudaq::Factory<eudaq::DataCollector>::Register<
+    Mpw3FastDataCollector, const std::string &, const std::string &>(
+    Mpw3FastDataCollector::m_id_factory);
 }
 
 Mpw3FastDataCollector::Mpw3FastDataCollector(const std::string &name,
@@ -37,6 +37,9 @@ void Mpw3FastDataCollector::DoConfigure() {
     mBackEndIDs.clear();
     mBackEndIDs.push_back(xlnxBoardId);
     mXlnxIp = conf->Get("XILINX_IP", "192.168.201.1");
+    mSyncMode = conf->Get("SYNC_MODE", 0) == 0
+                    ? SVD::XLNX_CTRL::UPDDetails::SyncMode::Timestamp
+                    : SVD::XLNX_CTRL::UPDDetails::SyncMode::TriggerNumber;
   }
 }
 
@@ -54,6 +57,7 @@ void Mpw3FastDataCollector::DoStartRun() {
 
   mEventMerger = std::make_unique<SVD::XLNX_CTRL::FADCGbEMerger>(
       mBackEndIDs, eudaq::GetLogger());
+  mEventMerger->setSyncMode(mSyncMode);
 
   mEventBuilderRunning = std::make_unique<std::atomic<bool>>(true);
   mEventBuilderThread = std::make_unique<std::thread>(
@@ -99,6 +103,7 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
   SVD::XLNX_CTRL::Event_t frame;
   uint32_t nEuEvent = 0;
   auto euEvent = eudaq::Event::MakeShared("Mpw3FrameEvent");
+  int triggerOvflw = 0, oldTrgN = 0;
 
   while (mEventBuilderRunning->load(std::memory_order_acquire)) {
     if ((*mEventMerger)(frame)) {
@@ -107,16 +112,25 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
 
       euEvent->SetTag("recvTS_FW", frame.m_recvTsFw);
       euEvent->SetTag("recvTS_CPU", frame.m_recvTsCpu);
+      auto currTrgN = frame.m_EventNr;
+
+      if (currTrgN < oldTrgN) {
+        triggerOvflw++;
+      }
+
+      // take overflow into account, trigger comes with 16 bit precision
+      // in case you are wondering, yes TLU has only 15 bits, but we don't
+      // sample triggerN from TLU but increment own counter in FPGA
+      currTrgN += triggerOvflw * (1 << 16);
+      std::cout << currTrgN << "\n";
+      oldTrgN = currTrgN;
+      euEvent->SetTriggerN(currTrgN);
       for (int i = 0; i < frame.m_Data.size(); i++) {
-        if (frame.m_Data[i].size() > 2) {
-          euEvent->AddBlock(i, frame.m_Data[i]);
-          euEvent->SetTag("frameNmb", nEuEvent);
-          euEvent->SetEventN(frame.m_EventNr);
-          WriteEvent(euEvent);
-          nEuEvent++;
-        } else {
-          EUDAQ_WARN("too small frame size <= 2");
-        }
+        euEvent->AddBlock(i, frame.m_Data[i]);
+        euEvent->SetTag("frameNmb", nEuEvent);
+        euEvent->SetEventN(frame.m_EventNr);
+        WriteEvent(euEvent);
+        nEuEvent++;
         // there might be more than 1 unpacker
         // assigned to this merger
       }

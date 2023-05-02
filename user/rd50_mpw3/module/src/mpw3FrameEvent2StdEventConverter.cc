@@ -48,53 +48,81 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
     eudaq::StandardPlane plane(0, "Frame", "RD50_MPW3_frame");
     plane.SetSizeZS(DefsMpw3::dimSensorCol, DefsMpw3::dimSensorRow, 0);
     DefsMpw3::word_t sofWord, eofWord;
+    DefsMpw3::ts_t minSofOvflw = -1, maxEofOvflw = 0;
     int sofCnt = 0, eofCnt = 0, hitCnt = 0;
     double avgTsLe = 0.0, avgTsTe = 0.0;
+    int errorCnt = 0;
+
+    bool insideFrame = false;
+
+    std::vector<DefsMpw3::HitInfo> hitBuffer;
 
     for (const auto &word : rawdata) {
       /*
        * each word represents a particle detection in the specified pixel for a
-       * certain ToT. This converter does not aim to generate a proper global
-       * Timestamp. We simply store the hit information of each word in a plane.
-       * Therefore meant only for the monitor not for real analysis!!!
+       * certain ToT.
        */
 
       DefsMpw3::HitInfo hi(word);
       if (hi.sof) {
         sofWord = hi.initialWord;
         sofCnt++;
+        insideFrame = true;
         continue;
       }
       if (hi.eof) {
         eofWord = hi.initialWord;
         eofCnt++;
+        if (!insideFrame) {
+          EUDAQ_WARN("EOF before SOF");
+          // we only except full frames
+          // incomplete frames discarded
+          errorCnt++;
+          continue;
+        }
+        sofWord = 0;
+        insideFrame = false;
+        auto sofOvflw = DefsMpw3::frameOvflw(sofWord, eofWord, false);
+        auto eofOvflw = DefsMpw3::frameOvflw(sofWord, eofWord, true);
+        minSofOvflw = minSofOvflw > sofOvflw ? sofOvflw : minSofOvflw;
+        maxEofOvflw = maxEofOvflw < eofOvflw ? eofOvflw : maxEofOvflw;
+
+        for (const auto &hit : hitBuffer) {
+          hitCnt++;
+          plane.PushPixel(hi.pixIdx.col, hi.pixIdx.row, hi.tot);
+        }
+        continue;
+      }
+      if (hi.triggerNmb > 0) {
+        // trigger numbers are alrdy in raw eudaq event, don't deal with them
+        // here anymore
         continue;
       }
       avgTsLe += hi.tsLe;
       avgTsTe += hi.tsTe;
       hitCnt++;
-      plane.PushPixel(hi.pixIdx.col, hi.pixIdx.row,
-                      hi.tot); // store ToT as "raw pixel value"
+
+      hitBuffer.push_back(hi);
+      //      plane.PushPixel(hi.pixIdx.col, hi.pixIdx.row,
+      //                      hi.tot); // store ToT as "raw pixel value"
     }
-    avgTsLe /= double(hitCnt);
-    avgTsTe /= double(hitCnt);
-    if (avgTsTe < avgTsLe) {
-      // tailing edgz < leading edge => should be an overflow
-      avgTsTe += DefsMpw3::dTPerOvflw;
-    }
+    //    avgTsLe /= double(hitCnt);
+    //    avgTsTe /= double(hitCnt);
+    //    if (avgTsTe < avgTsLe) {
+    //      // tailing edgz < leading edge => should be an overflow
+    //      avgTsTe += DefsMpw3::dTPerOvflw;
+    //    }
     /*
      * timestamp for begin / end is being calculated by
      * begin: ovflw Cnt from SOF and average TS-LE from all hits in the current
      * frame end: ovflw Cnt from EOF  and average TS-TE from all hits in the
      * current frame
      */
-    if (sofCnt == 1 && eofCnt == 1) {
-      auto sofOvflw = DefsMpw3::frameOvflw(sofWord, eofWord, false);
-      auto eofOvflw = DefsMpw3::frameOvflw(sofWord, eofWord, true);
+    if (minSofOvflw > 0 && maxEofOvflw > 0) {
       uint64_t timeBegin =
-          (sofOvflw * DefsMpw3::dTPerOvflw + avgTsLe) * DefsMpw3::lsbTime;
+          (minSofOvflw * DefsMpw3::dTPerOvflw) * DefsMpw3::lsbTime;
       uint64_t timeEnd =
-          (eofOvflw * DefsMpw3::dTPerOvflw + avgTsTe) * DefsMpw3::lsbTime;
+          (maxEofOvflw * DefsMpw3::dTPerOvflw) * DefsMpw3::lsbTime;
 
       if (t0 < 0.0) {
         foundT0 = true;
@@ -108,6 +136,7 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
 
       d2->SetTimeBegin(timeBegin);
       d2->SetTimeEnd(timeEnd);
+      d2->SetTriggerN(d1->GetTriggerN());
       //      std::cout << "set time begin = " << d2->GetTimeBegin()
       //                << " end = " << d2->GetTimeEnd() << "\n";
     } else {
@@ -117,17 +146,6 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
 
     d2->SetDescription("RD50_MPW3_frame");
     d2->AddPlane(plane);
-
-    // for these "rough" events based on frames we simply use the receive
-    // timestamp, which comes in [us], Corry wants [ps]
-
-    //    uint64_t ts = d1->GetTag("recvTS", 0);
-    //    d2->SetTimeBegin(ts * 1e6);
-    //    d2->SetTimeEnd(ts * 1e6);
-
-    //    d2->SetTimeBegin(cpuTsInt);
-    //    d2->SetTimeEnd(cpuTsInt);
   }
-  //  std::cout << "valid event\n";
   return true;
 }

@@ -11,197 +11,200 @@
 #include <string>
 
 namespace SVD {
-  namespace XLNX_CTRL {
+namespace XLNX_CTRL {
 
-    namespace UPDDetails {
+namespace UPDDetails {
 
-      static constexpr auto PayloadBufferSize = 1024;
-      using Payload_t = std::vector<Defs::VMEData_t>;
-      using PayloadBuffer_t = Tools::RingBuffer_t<Payload_t, PayloadBufferSize>;
+enum class SyncMode { Timestamp, TriggerNumber };
 
-      static constexpr auto FADCBufferSize = 1024;
-      using FADCPayload_t = std::vector<Defs::VMEData_t>;
-      using FADCPayloadBuffer_t =
-          Tools::RingBuffer_t<FADCPayload_t, FADCBufferSize>;
+static constexpr auto PayloadBufferSize = 1024;
+using Payload_t = std::vector<Defs::VMEData_t>;
+using PayloadBuffer_t = Tools::RingBuffer_t<Payload_t, PayloadBufferSize>;
 
-      inline constexpr auto
-      VMEBaseFromPackage(const Defs::VMEData_t &rWord) noexcept {
-        return rWord & 0xff;
-      }
+static constexpr auto FADCBufferSize = 1024;
+using FADCPayload_t = std::vector<Defs::VMEData_t>;
+using FADCPayloadBuffer_t = Tools::RingBuffer_t<FADCPayload_t, FADCBufferSize>;
 
-      inline constexpr auto PackageID(const Defs::VMEData_t &rWord) noexcept {
-        return (rWord >> 8) & 0xffffff;
-      }
+inline constexpr auto
+VMEBaseFromPackage(const Defs::VMEData_t &rWord) noexcept {
+  return rWord & 0xff;
+}
 
-      class Receiver {
-      private:
-        static constexpr auto m_gRetries = 100;
-        static constexpr auto m_gMaxPackageSize = 8500;
-        static constexpr auto m_gName = "UDPReceiver";
-        static constexpr auto m_gTimeout = 2500000;
+inline constexpr auto PackageID(const Defs::VMEData_t &rWord) noexcept {
+  return (rWord >> 8) & 0xffffff;
+}
 
-        inline static auto constexpr PortFromID(uint8_t vmeBase) noexcept
-            -> Defs::VMEData_t {
-          return vmeBase | (0xc3 << 8);
-        }
+class Receiver {
+private:
+  static constexpr auto m_gRetries = 100;
+  static constexpr auto m_gMaxPackageSize = 8500;
+  static constexpr auto m_gName = "UDPReceiver";
+  static constexpr auto m_gTimeout = 2500000;
 
-      public:
-        Receiver() = default;
-        Receiver(const BackEndID_t &rID, eudaq::LogSender *logger);
-        ~Receiver();
-        Receiver(Receiver &&rOther) noexcept
-            : m_IsRunning(std::move(rOther.m_IsRunning)),
-              m_Socket(std::move(rOther.m_Socket)),
-              m_Buffer(std::move(rOther.m_Buffer)),
-              m_pThread(std::move(rOther.m_pThread)), m_Acceptor(),
-              m_VMEBase(rOther.m_VMEBase) {}
+  inline static auto constexpr PortFromID(uint8_t vmeBase) noexcept
+      -> Defs::VMEData_t {
+    return vmeBase | (0xc3 << 8);
+  }
 
-        inline auto GetBuffer() noexcept -> PayloadBuffer_t & {
-          return *m_Buffer;
-        }
+public:
+  Receiver() = default;
+  Receiver(const BackEndID_t &rID, eudaq::LogSender *logger);
+  ~Receiver();
+  Receiver(Receiver &&rOther) noexcept
+      : m_IsRunning(std::move(rOther.m_IsRunning)),
+        m_Socket(std::move(rOther.m_Socket)),
+        m_Buffer(std::move(rOther.m_Buffer)),
+        m_pThread(std::move(rOther.m_pThread)), m_Acceptor(),
+        m_VMEBase(rOther.m_VMEBase) {}
 
-        inline auto IsRunning() const noexcept {
-          return m_IsRunning->load(std::memory_order_acquire);
-        }
+  inline auto GetBuffer() noexcept -> PayloadBuffer_t & { return *m_Buffer; }
 
-        inline auto Exit() noexcept {
-          m_IsRunning->store(false, std::memory_order_release);
-        }
+  inline auto IsRunning() const noexcept {
+    return m_IsRunning->load(std::memory_order_acquire);
+  }
 
-      private:
-        static auto IPFromID(uint8_t vmeBase) noexcept -> std::string;
-        auto Eventloop() noexcept -> void;
+  inline auto Exit() noexcept {
+    m_IsRunning->store(false, std::memory_order_release);
+  }
 
-        std::unique_ptr<std::atomic<bool>> m_IsRunning{};
-        std::unique_ptr<Tools::UDPStream> m_Socket{};
-        std::unique_ptr<PayloadBuffer_t> m_Buffer{};
-        std::unique_ptr<std::thread> m_pThread{};
+private:
+  static auto IPFromID(uint8_t vmeBase) noexcept -> std::string;
+  auto Eventloop() noexcept -> void;
 
-        Tools::UDPAcceptor m_Acceptor{};
-        eudaq::LogSender *m_euLogger;
+  std::unique_ptr<std::atomic<bool>> m_IsRunning{};
+  std::unique_ptr<Tools::UDPStream> m_Socket{};
+  std::unique_ptr<PayloadBuffer_t> m_Buffer{};
+  std::unique_ptr<std::thread> m_pThread{};
 
-        uint8_t m_VMEBase = 0;
-      };
+  Tools::UDPAcceptor m_Acceptor{};
+  eudaq::LogSender *m_euLogger;
 
-      class Unpacker {
-      public:
-        Unpacker() = default;
-        Unpacker(PayloadBuffer_t &rBuffer, eudaq::LogSender *logger) noexcept;
-        Unpacker(Unpacker &&rOther) noexcept;
-        ~Unpacker();
+  uint8_t m_VMEBase = 0;
+};
 
-        inline auto IsRunning() const noexcept {
-          return m_IsRunning->load(std::memory_order_acquire);
-        }
+class Unpacker {
 
-        auto Exit() noexcept {
-          m_IsRunning->store(false, std::memory_order_release);
-        }
+public:
+  Unpacker() = default;
+  Unpacker(PayloadBuffer_t &rBuffer, eudaq::LogSender *logger) noexcept;
+  Unpacker(Unpacker &&rOther) noexcept;
+  ~Unpacker();
 
-        inline auto PopFADCPayload(FADCPayload_t &rPayload,
-                                   int retries = 100) noexcept -> bool {
-          while ((--retries != 0) && !m_FADCBuffer->Pop(rPayload))
-            ;
-          if (retries == 0)
-            return m_FADCBuffer->Pop(rPayload);
-          return true;
-        }
+  inline auto IsRunning() const noexcept {
+    return m_IsRunning->load(std::memory_order_acquire);
+  }
 
-        inline auto IsEmpty() const noexcept { return m_FADCBuffer->IsEmpty(); }
+  auto Exit() noexcept { m_IsRunning->store(false, std::memory_order_release); }
 
-      private:
-        static constexpr auto m_gName = "UDPUnpacker";
-        inline auto NextFrame(PayloadBuffer_t &rBuffer, Payload_t &rFrame,
-                              int retries = 100) noexcept -> bool {
-          for (; (--retries != 0) && !rBuffer.Pop(rFrame);)
-            ;
-          if (0 == retries)
-            return rBuffer.Pop(rFrame);
-          return true;
-        }
+  inline auto PopFADCPayload(FADCPayload_t &rPayload,
+                             int retries = 100) noexcept -> bool {
+    while ((--retries != 0) && !m_FADCBuffer->Pop(rPayload))
+      ;
+    if (retries == 0)
+      return m_FADCBuffer->Pop(rPayload);
+    return true;
+  }
 
-        static inline auto IsMainHeader(const Defs::VMEData_t &rWord) noexcept {
-          /* start of frame comes as 0b10101111{0/1}xxx
-           * 0/1: base (0) or piggy(1)
-           * at this stage we don't care if piggy or base
-           * xxx n Bits to fill up 32 bit word
-           * {0/1}xxx is 24 bit in total
-           */
-          return (rWord >> 24) == 0xAF;
-        }
+  inline auto IsEmpty() const noexcept { return m_FADCBuffer->IsEmpty(); }
 
-        static inline auto IsTrailer(const Defs::VMEData_t &rWord) noexcept {
-          /* end of frame comes as 0b11100000{0/1}xxx
-           * 0/1: base (0) or piggy(1)
-           * at this stage we don't care if piggy or base
-           * xxx n Bits to fill up 32 bit word
-           * {0/1}xxx is 24 bit in total
-           */
-          return (rWord >> 24) == 0xE0;
-        }
+  UPDDetails::SyncMode syncMode() const;
+  void setSyncMode(UPDDetails::SyncMode newSyncMode);
 
-        inline auto PushFADCFrame(FADCPayload_t &rFADC,
-                                  int retries = 100) noexcept {
-          for (; (--retries != 0) && !m_FADCBuffer->Push(rFADC);)
-            ;
-          if (0 == retries)
-            return m_FADCBuffer->Push(rFADC);
-          return true;
-        }
+private:
+  static constexpr auto m_gName = "UDPUnpacker";
+  inline auto NextFrame(PayloadBuffer_t &rBuffer, Payload_t &rFrame,
+                        int retries = 100) noexcept -> bool {
+    for (; (--retries != 0) && !rBuffer.Pop(rFrame);)
+      ;
+    if (0 == retries)
+      return rBuffer.Pop(rFrame);
+    return true;
+  }
 
-        auto EventLoop(PayloadBuffer_t &rBuffer) noexcept -> void;
+  static inline auto IsMainHeader(const Defs::VMEData_t &rWord) noexcept {
+    /* start of frame comes as 0b10101111{0/1}xxx
+     * 0/1: base (0) or piggy(1)
+     * at this stage we don't care if piggy or base
+     * xxx n Bits to fill up 32 bit word
+     * {0/1}xxx is 24 bit in total
+     */
+    return (rWord >> 24) == 0xAF;
+  }
 
-      private:
-        std::unique_ptr<std::atomic<bool>> m_IsRunning{};
-        std::unique_ptr<FADCPayloadBuffer_t> m_FADCBuffer{};
-        std::unique_ptr<std::thread> m_pThread{};
+  static inline auto IsTriggerHeader(const Defs::VMEData_t &rWord) noexcept {
+      return (rWord >> 16) == 0xFFFF;
+  }
 
-        eudaq::LogSender *m_euLogger;
-      };
+  static inline auto IsTrailer(const Defs::VMEData_t &rWord) noexcept {
+    /* end of frame comes as 0b11100000{0/1}xxx
+     * 0/1: base (0) or piggy(1)
+     * at this stage we don't care if piggy or base
+     * xxx n Bits to fill up 32 bit word
+     * {0/1}xxx is 24 bit in total
+     */
+    return (rWord >> 24) == 0xE0;
+  }
 
-    } // namespace UPDDetails
+  inline auto PushFADCFrame(FADCPayload_t &rFADC, int retries = 100) noexcept {
+    for (; (--retries != 0) && !m_FADCBuffer->Push(rFADC);)
+      ;
+    if (0 == retries)
+      return m_FADCBuffer->Push(rFADC);
+    return true;
+  }
 
-    class FADCGbEMerger {
-    public:
-      FADCGbEMerger(const std::vector<BackEndID_t> &rIDs,
-                    eudaq::LogSender &logger);
-      FADCGbEMerger(const FADCGbEMerger &rOther) = delete;
-      FADCGbEMerger(FADCGbEMerger &&rOther) noexcept;
-      ~FADCGbEMerger();
+  auto EventLoop(PayloadBuffer_t &rBuffer) noexcept -> void;
 
-      auto operator()(Event_t &rEvent) noexcept -> bool;
+private:
+  std::unique_ptr<std::atomic<bool>> m_IsRunning{};
+  std::unique_ptr<FADCPayloadBuffer_t> m_FADCBuffer{};
+  std::unique_ptr<std::thread> m_pThread{};
 
-      inline auto IsEmpty() const noexcept -> bool {
-        return std::all_of(
-            std::begin(m_Unpackers), std::end(m_Unpackers),
-            [](const auto &rUnpacker) noexcept { return rUnpacker.IsEmpty(); });
-      }
+  eudaq::LogSender *m_euLogger;
+  UPDDetails::SyncMode mSyncMode;
+};
 
-      auto SyncEvents() noexcept -> void;
+} // namespace UPDDetails
 
-      inline auto IsEventMissmatch() const noexcept {
-        return m_EventMissMatch.load(std::memory_order_acquire);
-      }
+class FADCGbEMerger {
+public:
+  FADCGbEMerger(const std::vector<BackEndID_t> &rIDs, eudaq::LogSender &logger);
+  FADCGbEMerger(const FADCGbEMerger &rOther) = delete;
+  FADCGbEMerger(FADCGbEMerger &&rOther) noexcept;
+  ~FADCGbEMerger();
 
-    private:
-      inline auto Exit() noexcept -> void {
-        for (auto &rReceiver : m_Receivers)
-          rReceiver.Exit();
-        for (auto &rUnpacker : m_Unpackers)
-          rUnpacker.Exit();
-      }
+  auto operator()(Event_t &rEvent) noexcept -> bool;
 
-      static inline auto
-      GetEventNumber(const std::vector<Defs::VMEData_t> &rData) -> uint32_t {
-        return (rData.front() & 0x7fff);
-      }
+  inline auto IsEmpty() const noexcept -> bool {
+    return std::all_of(
+        std::begin(m_Unpackers), std::end(m_Unpackers),
+        [](const auto &rUnpacker) noexcept { return rUnpacker.IsEmpty(); });
+  }
 
-      std::vector<UPDDetails::Receiver> m_Receivers{};
-      std::vector<UPDDetails::Unpacker> m_Unpackers{};
-      std::atomic<bool> m_EventMissMatch{false};
-      Event_t m_Event;
-      eudaq::LogSender *m_euLogger;
-    };
+  inline auto IsEventMissmatch() const noexcept {
+    return m_EventMissMatch.load(std::memory_order_acquire);
+  }
+  void setSyncMode(UPDDetails::SyncMode newSyncMode);
 
-  } // namespace XLNX_CTRL
+private:
+  inline auto Exit() noexcept -> void {
+    for (auto &rReceiver : m_Receivers)
+      rReceiver.Exit();
+    for (auto &rUnpacker : m_Unpackers)
+      rUnpacker.Exit();
+  }
+
+  static inline auto GetEventNumber(const std::vector<Defs::VMEData_t> &rData)
+      -> uint32_t {
+    return (rData.front() & 0x7fff);
+  }
+
+  std::vector<UPDDetails::Receiver> m_Receivers{};
+  std::vector<UPDDetails::Unpacker> m_Unpackers{};
+  std::atomic<bool> m_EventMissMatch{false};
+  Event_t m_Event;
+  eudaq::LogSender *m_euLogger;
+};
+
+} // namespace XLNX_CTRL
 } // namespace SVD
