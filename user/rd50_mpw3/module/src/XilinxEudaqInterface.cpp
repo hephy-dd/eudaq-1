@@ -252,6 +252,24 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
         fadc.resize(offset + std::distance(frame.begin(), itCurrTrg));
         if (!IsTriggerHeader(frame.front())) {
           std::copy(frame.begin(), itCurrTrg, fadc.begin() + offset);
+
+          if (Unpacker::IsTriggerHeader(fadc.front())) {
+
+            fadc.push_back(fw64BitTsMsb);
+            fadc.push_back(fw64BitTsLsb);
+            fadc.push_back(cpuTsMsb);
+            fadc.push_back(cpuTsLsb);
+
+            //        for (auto w : fadc) {
+            //          std::cout << w << " ";
+            //        }
+            //        std::cout << "\n";
+
+            while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
+              // retry until success or somebody wants to stop us
+            }
+            fadc.clear();
+          }
         } else {
           // the new frame instantly starts with a trigger word => buffered
           // package now is closed and we ship it immediately
@@ -286,32 +304,10 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
       auto itNextTrg =
           std::find_if(itCurrTrg + 1, frame.end(), &Unpacker::IsTriggerHeader);
 
-      const auto offset = fadc.size();
-      fadc.resize(offset + std::distance(itCurrTrg, itNextTrg));
-      std::copy(itCurrTrg, itNextTrg, fadc.begin() + offset);
-
-      if (Unpacker::IsTriggerHeader(fadc.front())) {
-
-        fadc.push_back(fw64BitTsMsb);
-        fadc.push_back(fw64BitTsLsb);
-        fadc.push_back(cpuTsMsb);
-        fadc.push_back(cpuTsLsb);
-
-        //        for (auto w : fadc) {
-        //          std::cout << w << " ";
-        //        }
-        //        std::cout << "\n";
-
-        while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
-          // retry until success or somebody wants to stop us
-        }
-        fadc.clear();
-      }
       // no more incomplete triggerWord enclosed packs left
       // search current frame for all remaining trigger packs
-      for (itCurrTrg =
-               std::find_if(itNextTrg, frame.end(), &Unpacker::IsTriggerHeader);
-           itCurrTrg != frame.end();
+
+      for (; itCurrTrg != frame.end();
            itCurrTrg = std::find_if(itNextTrg, frame.end(),
                                     &Unpacker::IsTriggerHeader)) {
         itNextTrg = std::find_if(itCurrTrg + 1, frame.end(),
