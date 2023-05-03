@@ -20,7 +20,6 @@ auto dummy0 = eudaq::Factory<eudaq::StdEventConverter>::Register<
 bool Mpw3PreprocessedEvent2StdEventConverter::Converting(
     eudaq::EventSPC d1, eudaq::StdEventSP d2, eudaq::ConfigSPC conf) const {
   auto ev = std::dynamic_pointer_cast<const eudaq::RawEvent>(d1);
-
   int planes = 0;
 
   for (int i = 0; i < ev->NumBlocks(); i++) {

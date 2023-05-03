@@ -80,7 +80,6 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
           errorCnt++;
           continue;
         }
-        sofWord = 0;
         insideFrame = false;
         auto sofOvflw = DefsMpw3::frameOvflw(sofWord, eofWord, false);
         auto eofOvflw = DefsMpw3::frameOvflw(sofWord, eofWord, true);
@@ -89,8 +88,9 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
 
         for (const auto &hit : hitBuffer) {
           hitCnt++;
-          plane.PushPixel(hi.pixIdx.col, hi.pixIdx.row, hi.tot);
+          plane.PushPixel(hit.pixIdx.col, hit.pixIdx.row, hit.tot);
         }
+        hitBuffer.clear();
         continue;
       }
       if (hi.triggerNmb > 0) {

@@ -164,6 +164,7 @@ struct HitInfo {
     }
     sof = isSOF(word);
     eof = isEOF(word);
+    hitWord = !sof & !eof & !isTrigger(word);
     piggy = extractPiggy(word) > 0 ? true : false;
     pixIdx = dColIdx2Pix(dcol, pix);
   }
@@ -171,20 +172,24 @@ struct HitInfo {
 
   inline std::string toStr() {
     std::stringstream ss;
-    if (!sof && !eof) {
-      ss << "piggy? " << piggy << " idx = " << std::setw(2) << std::setfill('0')
+    if (hitWord) {
+      ss << "iniWord = " << std::hex << initialWord << std::dec << " piggy? "
+         << piggy << " idx = " << std::setw(2) << std::setfill('0')
          << pixIdx.row << ":" << std::setw(2) << std::setfill('0') << pixIdx.col
          << " TSTE = " << std::setw(3) << std::setfill('0') << tsTe
          << " TSLE = " << std::setw(3) << std::setfill('0') << tsLe
          << " Tot = " << std::setw(3) << std::setfill('0') << tot;
     } else {
       if (sof) {
-        ss << "SOF ";
+        ss << "iniWord = " << std::hex << initialWord << std::dec << " SOF ";
+        ss << "ovflwCnt = " << OvFlwCnt;
+      } else if (eof) {
+        ss << "iniWord = " << std::hex << initialWord << std::dec << " EOF ";
+        ss << "ovflwCnt = " << OvFlwCnt;
       } else {
-        ss << "EOF ";
+        ss << "iniWord = " << std::hex << initialWord << std::dec
+           << " triggerNmb = " << triggerNmb;
       }
-
-      ss << "ovflwCnt = " << OvFlwCnt;
     }
     return ss.str();
   }

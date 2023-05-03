@@ -40,7 +40,8 @@ void Mpw3DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
 
   mOut << "\n\n new event #" << evtCnt++
        << " received @ FW-TS = " << ev->GetTag("recvTS_FW")
-       << " CPU TS = " << ev->GetTag("recvTS_CPU") << "\n\n";
+       << " CPU TS = " << ev->GetTag("recvTS_CPU")
+       << " triggerNmb = " << ev->GetTriggerN() << "\n\n";
 
   auto block = ev->GetBlock(0);
   std::vector<uint32_t> data;

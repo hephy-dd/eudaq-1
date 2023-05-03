@@ -123,8 +123,6 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
                    triggerOvflw * (1 << 16); // update current trigger
       }
       oldTrgN = currTrgN;
-
-      std::cout << "trg = " << currTrgN << "\n";
       euEvent->SetTriggerN(currTrgN);
       for (int i = 0; i < frame.m_Data.size(); i++) {
         euEvent->AddBlock(i, frame.m_Data[i]);
