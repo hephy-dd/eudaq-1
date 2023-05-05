@@ -86,6 +86,7 @@ void ElogRunCtrl::submit(bool autoSubmit) {
   auto msg = ui->teMessage->toPlainText();
   if (autoSubmit) {
     msg = QString("automatic log for run %1").arg(mCurrRunN);
+    msg += "\nComment:\n" + ui->teMessage->toPlainText();
   }
   auto succ =
       mElog.submitEntry(attributes, msg, autoSubmit, mCurrRunN, eventsCurrRun(),
