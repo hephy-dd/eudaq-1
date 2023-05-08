@@ -7,6 +7,7 @@
 #include <QWidget>
 #include <QMap>
 #include <QDateTime>
+#include <QSettings>
 
 namespace Ui {
 class ElogRunCtrl;
@@ -34,6 +35,8 @@ private slots:
     void submit(bool autoSubmit = false);
 
 private:
+      using SetAtt = QPair<QString, QString>;
+
     struct Attribute{
         QString name;
         QStringList options;
@@ -44,7 +47,9 @@ private:
     void populateUi();
     void elogSetup();
     QStringList parseElogCfgLine(const std::string &key);
-    int eventsCurrRun();    
+    int eventsCurrRun();
+    QList<SetAtt> attributesSet();
+    bool saveCurrentElogSetup();
 
     Ui::ElogRunCtrl *ui;    
     AttList mAttributes;
@@ -52,6 +57,7 @@ private:
     QDateTime mStartTime, mStopTime;
     QString mConfigFile;
     QString mEventCntConn;
+    QSettings mSettings;
     uint mCurrRunN;
 };
 

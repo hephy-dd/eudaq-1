@@ -3,7 +3,9 @@
 
 #include <QComboBox>
 #include <QDebug>
+#include <QFile>
 #include <QRegularExpression>
+#include <QSettings>
 #include <QTime>
 
 namespace {
@@ -14,10 +16,12 @@ auto dummy0 = eudaq::Factory<eudaq::RunControl>::Register<ElogRunCtrl,
 
 ElogRunCtrl::ElogRunCtrl(const std::string &listenaddress, QWidget *parent)
     : QWidget(parent), eudaq::RunControl(listenaddress),
-      ui(new Ui::ElogRunCtrl) {
+      ui(new Ui::ElogRunCtrl),
+      mSettings(QSettings("EUDAQ collaboration", "EUDAQ")) {
   ui->setupUi(this);
   this->show();
   connect(ui->pbSubmit, &QPushButton::clicked, this, &ElogRunCtrl::submit);
+  mSettings.beginGroup("ElogRC");
 }
 
 ElogRunCtrl::~ElogRunCtrl() { delete ui; }
@@ -58,40 +62,20 @@ void ElogRunCtrl::Reset() {
 
 void ElogRunCtrl::Terminate() {
   RunControl::Terminate();
+  saveCurrentElogSetup();
   close();
 }
 
 void ElogRunCtrl::submit(bool autoSubmit) {
-  using Att = QPair<QString, QString>;
-  QList<Att> attributes;
-  for (int i = 0; i < ui->twAtt->rowCount(); i++) {
-    Att att;
-    auto nameItem = ui->twAtt->item(i, 0);
-    if (nameItem == nullptr) {
-      qWarning() << "trying to send uninitialized attribute name";
-      continue;
-    }
-    att.first = nameItem->data(Qt::DisplayRole).toString();
-    auto valItem = ui->twAtt->item(i, 1);
-    if (valItem != nullptr) {
-      att.second = valItem->data(Qt::DisplayRole).toString();
-    }
-    auto w = ui->twAtt->cellWidget(i, 1);
-    auto cb = qobject_cast<QComboBox *>(w);
-    if (cb != nullptr) {
-      att.second = cb->currentText();
-    }
-    attributes << att;
-  }
   auto msg = ui->teMessage->toPlainText();
   if (autoSubmit) {
     msg = QString("automatic log for run %1").arg(mCurrRunN);
     msg += "\nComment:\n" + ui->teMessage->toPlainText();
   }
-  auto succ =
-      mElog.submitEntry(attributes, msg, autoSubmit, mCurrRunN, eventsCurrRun(),
-                        mStartTime.toString("dd.MM.yyyy hh:mm:ss"),
-                        mStopTime.toString("dd.MM.yyyy hh:mm:ss"), mConfigFile);
+  auto succ = mElog.submitEntry(
+      attributesSet(), msg, autoSubmit, mCurrRunN, eventsCurrRun(),
+      mStartTime.toString("dd.MM.yyyy hh:mm:ss"),
+      mStopTime.toString("dd.MM.yyyy hh:mm:ss"), mConfigFile);
   if (succ) {
     if (autoSubmit) {
       ui->tbLog->insertPlainText(
@@ -121,8 +105,27 @@ void ElogRunCtrl::populateUi() {
       foreach (const auto &o, att.options) {
         cb->addItem(o);
       }
+    } else {
+      ui->twAtt->setItem(i, 1, new QTableWidgetItem());
     }
-    i++;
+
+    // restore old settings if there are some in cache matching our config
+    if (mSettings.allKeys().contains(att.name)) {
+      auto item = ui->twAtt->item(i, 1);
+      auto widget = ui->twAtt->cellWidget(i, 1);
+      i++;
+      if (item != nullptr) {
+        item->setData(Qt::DisplayRole, mSettings.value(att.name));
+        continue;
+      } else if (widget == nullptr) {
+        continue;
+      }
+      auto cb = qobject_cast<QComboBox *>(widget);
+      if (cb == nullptr) {
+        continue;
+      }
+      cb->setCurrentText(mSettings.value(att.name).toString());
+    }
   }
 }
 
@@ -164,7 +167,6 @@ void ElogRunCtrl::elogSetup() {
   QRegularExpression optionRegex(R"(Options (.+))");
   QMap<QString, QStringList> options;
   for (const auto &k : keys) {
-    qDebug() << k.c_str();
     auto match = optionRegex.match(k.c_str());
     if (!match.hasMatch()) {
       // the current ini key does not indicate an attribute option
@@ -234,4 +236,37 @@ int ElogRunCtrl::eventsCurrRun() {
     }
   }
   return -1;
+}
+
+QList<ElogRunCtrl::SetAtt> ElogRunCtrl::attributesSet() {
+  QList<ElogRunCtrl::SetAtt> attributes;
+  for (int i = 0; i < ui->twAtt->rowCount(); i++) {
+    SetAtt att;
+    auto nameItem = ui->twAtt->item(i, 0);
+    if (nameItem == nullptr) {
+      qWarning() << "trying to send uninitialized attribute name";
+      continue;
+    }
+    att.first = nameItem->data(Qt::DisplayRole).toString();
+    auto valItem = ui->twAtt->item(i, 1);
+    if (valItem != nullptr) {
+      att.second = valItem->data(Qt::DisplayRole).toString();
+    }
+    auto w = ui->twAtt->cellWidget(i, 1);
+    auto cb = qobject_cast<QComboBox *>(w);
+    if (cb != nullptr) {
+      att.second = cb->currentText();
+    }
+    attributes << att;
+  }
+  return attributes;
+}
+
+bool ElogRunCtrl::saveCurrentElogSetup() {
+  auto setAtts = attributesSet();
+  foreach (const auto &att, setAtts) {
+    mSettings.setValue(att.first, att.second);
+  }
+
+  return true;
 }
