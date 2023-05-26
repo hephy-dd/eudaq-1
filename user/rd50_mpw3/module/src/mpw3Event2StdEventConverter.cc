@@ -6,7 +6,7 @@ class Mpw3FrameEvent2StdEventConverter : public eudaq::StdEventConverter {
 public:
   bool Converting(eudaq::EventSPC d1, eudaq::StdEventSP d2,
                   eudaq::ConfigSPC conf) const override;
-  static const uint32_t m_id_factory = eudaq::cstr2hash("Mpw3FrameEvent");
+  static const uint32_t m_id_factory = eudaq::cstr2hash("RD50_Mpw3Event");
   static bool foundT0;
 };
 
