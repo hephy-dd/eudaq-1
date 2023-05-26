@@ -232,44 +232,44 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
 
       // if we still have data buffered from the last frame
 
-      //      std::cout << "fadc frame = "
-      //                << "\n"
-      //                << std::hex;
-      //      for (auto w : fadc) {
-      //        std::cout << w << " ";
-      //      }
-      //      std::cout << "\n" << std::dec;
-
       auto itCurrTrg =
           std::find_if(frame.begin(), frame.end(), &Unpacker::IsTriggerHeader);
 
-      //      std::cout << "new frame trg = " << extractTriggerN(*itCurrTrg)
-      //                << " begin = " << extractTriggerN(frame.front()) <<
-      //                "\n";
-
-      if (!fadc.empty()) {
+      if (!fadc.empty()) { // data left from earlier
         const auto offset = fadc.size();
         fadc.resize(offset + std::distance(frame.begin(), itCurrTrg));
-        if (!IsTriggerHeader(frame.front())) {
-          std::copy(frame.begin(), itCurrTrg, fadc.begin() + offset);
+        if (!IsTriggerHeader(
+                frame.front())) { // current frame does not start with trigger
+          std::copy(frame.begin(), itCurrTrg,
+                    fadc.begin() +
+                        offset); // copy data from current frame to
+                                 // buffer until trigger word in frame (can also
+                                 // be the whole frame, if none found
+                                 // std::find_if(..) evaluates to frame.end())
 
-          if (Unpacker::IsTriggerHeader(fadc.front())) {
+          if (Unpacker::IsTriggerHeader(fadc.front()) &&
+              itCurrTrg != frame.end()) {
+            /*
+             * buffered pack starts with trigger word && we did find a trigger
+             * word in the new frame => triggered event now is closed, ship to
+             * next thread
+             */
+
+            /* TODO: if trigger in new frame is located at end of vector, this
+             * would cause faulty behavior
+             */
 
             fadc.push_back(fw64BitTsMsb);
             fadc.push_back(fw64BitTsLsb);
             fadc.push_back(cpuTsMsb);
             fadc.push_back(cpuTsLsb);
 
-            //        for (auto w : fadc) {
-            //          std::cout << w << " ";
-            //        }
-            //        std::cout << "\n";
-
             while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
               // retry until success or somebody wants to stop us
             }
             fadc.clear();
           }
+          // if no trigger in new frame, it gets buffered for next round
         } else {
           // the new frame instantly starts with a trigger word => buffered
           // package now is closed and we ship it immediately
@@ -280,13 +280,6 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
 
           itCurrTrg = frame.begin();
 
-          //          std::cout << "instant delivery\n";
-
-          //          for (auto w : fadc) {
-          //            std::cout << w << " ";
-          //          }
-          //          std::cout << "\n";
-
           while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
             // retry until success or somebody wants to stop us
           }
@@ -295,9 +288,15 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
       }
 
       if (itCurrTrg == frame.end()) {
+        // no trigger in current frame, buffer it until the next trigger is
+        // found (somewhere in the future)
+        const auto offset = fadc.size();
+        fadc.resize(offset + std::distance(frame.begin(), frame.end()));
+        std::copy(frame.begin(), frame.end(), fadc.begin() + offset);
+
         m_euLogger->SendLogMessage(eudaq::LogMessage(
-            "not a single trigger word found in current frame, droping it",
-            eudaq::LogMessage::LVL_WARN));
+            "not a single trigger word found in current frame, buffering it",
+            eudaq::LogMessage::LVL_DEBUG));
         continue;
       }
 
@@ -331,6 +330,12 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
         } else {
         }
       }
+    }
+    if (fadc.size() > 5 * FADCBufferSize) {
+      m_euLogger->SendLogMessage(
+          eudaq::LogMessage("local buffer exceeds max size => discarding",
+                            eudaq::LogMessage::LVL_WARN));
+      fadc.clear();
     }
   }
 }
