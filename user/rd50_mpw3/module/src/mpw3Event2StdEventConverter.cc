@@ -45,8 +45,10 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
     rawdata.resize(block.size() / sizeWord);
     memcpy(rawdata.data(), block.data(), rawdata.size() * sizeWord);
 
-    eudaq::StandardPlane plane(0, "Frame", "RD50_MPW3_frame");
-    plane.SetSizeZS(DefsMpw3::dimSensorCol, DefsMpw3::dimSensorRow, 0);
+    eudaq::StandardPlane basePlane(0, "Base", "RD50_MPW3_base");
+    eudaq::StandardPlane piggyPlane(1, "Piggy", "RD50_MPW3_piggy");
+    basePlane.SetSizeZS(DefsMpw3::dimSensorCol, DefsMpw3::dimSensorRow, 0);
+    piggyPlane.SetSizeZS(DefsMpw3::dimSensorCol, DefsMpw3::dimSensorRow, 0);
     DefsMpw3::word_t sofWord, eofWord;
     DefsMpw3::ts_t minSofOvflw = -1, maxEofOvflw = 0;
     int sofCnt = 0, eofCnt = 0, hitCnt = 0;
@@ -54,8 +56,6 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
     int errorCnt = 0;
 
     bool insideFrame = false;
-
-    std::vector<DefsMpw3::HitInfo> hitBuffer;
 
     for (const auto &word : rawdata) {
       /*
@@ -78,20 +78,13 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
           // we only except full frames
           // incomplete frames discarded
           errorCnt++;
-          continue;
+          //          continue;
         }
         insideFrame = false;
         auto sofOvflw = DefsMpw3::frameOvflw(sofWord, eofWord, false);
         auto eofOvflw = DefsMpw3::frameOvflw(sofWord, eofWord, true);
         minSofOvflw = minSofOvflw > sofOvflw ? sofOvflw : minSofOvflw;
         maxEofOvflw = maxEofOvflw < eofOvflw ? eofOvflw : maxEofOvflw;
-
-        for (const auto &hit : hitBuffer) {
-          hitCnt++;
-          plane.PushPixel(hit.pixIdx.col, hit.pixIdx.row, hit.tot);
-        }
-        hitBuffer.clear();
-        continue;
       }
       if (hi.triggerNmb > 0) {
         // trigger numbers are alrdy in raw eudaq event, don't deal with them
@@ -102,16 +95,12 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
       avgTsTe += hi.tsTe;
       hitCnt++;
 
-      hitBuffer.push_back(hi);
-      //      plane.PushPixel(hi.pixIdx.col, hi.pixIdx.row,
-      //                      hi.tot); // store ToT as "raw pixel value"
+      if (hi.piggy) {
+        piggyPlane.PushPixel(hi.pixIdx.col, hi.pixIdx.row, hi.tot);
+      } else {
+        basePlane.PushPixel(hi.pixIdx.col, hi.pixIdx.row, hi.tot);
+      }
     }
-    //    avgTsLe /= double(hitCnt);
-    //    avgTsTe /= double(hitCnt);
-    //    if (avgTsTe < avgTsLe) {
-    //      // tailing edgz < leading edge => should be an overflow
-    //      avgTsTe += DefsMpw3::dTPerOvflw;
-    //    }
     /*
      * timestamp for begin / end is being calculated by
      * begin: ovflw Cnt from SOF and average TS-LE from all hits in the current
@@ -145,7 +134,8 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
     }
 
     d2->SetDescription("RD50_MPW3_frame");
-    d2->AddPlane(plane);
+    d2->AddPlane(basePlane);
+    d2->AddPlane(piggyPlane);
   }
   return true;
 }
