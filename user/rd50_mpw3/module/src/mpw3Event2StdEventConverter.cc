@@ -34,8 +34,8 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
     constexpr auto sizeWord = sizeof(uint32_t);
     if (block.size() <= 2 * sizeWord) {
       // not even head and tail present, this definitely is bullshit
-      EUDAQ_WARN("invalid block size, skipping event");
-      return false;
+      EUDAQ_WARN("empty event");
+      //      return false;
     }
 
     /*
@@ -120,6 +120,7 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
       }
 
       if (!foundT0) {
+        std::cout << "2\n";
         return false;
       }
 
@@ -130,10 +131,11 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
       //                << " end = " << d2->GetTimeEnd() << "\n";
     } else {
       EUDAQ_WARN("Not exactly 1 SOF and EOF in frame");
-      return false;
+      //      std::cout << "3\n";
+      //      return false;
     }
 
-    d2->SetDescription("RD50_MPW3_frame");
+    d2->SetDescription("RD50_MPW3");
     d2->AddPlane(basePlane);
     d2->AddPlane(piggyPlane);
   }
