@@ -33,9 +33,9 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
     auto block = ev->GetBlock(i);
     constexpr auto sizeWord = sizeof(uint32_t);
     if (block.size() <= 2 * sizeWord) {
-      // not even head and tail present, this definitely is bullshit
+      // no hits in event just trigger word,
+      // actually not usable, but don't fail for debug purposes
       EUDAQ_WARN("empty event");
-      //      return false;
     }
 
     /*
@@ -107,7 +107,7 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
      * frame end: ovflw Cnt from EOF  and average TS-TE from all hits in the
      * current frame
      */
-    if (minSofOvflw > 0 && maxEofOvflw > 0) {
+    if (sofCnt > 0 && eofCnt > 0) {
       uint64_t timeBegin =
           (minSofOvflw * DefsMpw3::dTPerOvflw) * DefsMpw3::lsbTime;
       uint64_t timeEnd =
@@ -120,19 +120,15 @@ bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
       }
 
       if (!foundT0) {
-        std::cout << "2\n";
         return false;
       }
 
       d2->SetTimeBegin(timeBegin);
       d2->SetTimeEnd(timeEnd);
       d2->SetTriggerN(d1->GetTriggerN());
-      //      std::cout << "set time begin = " << d2->GetTimeBegin()
-      //                << " end = " << d2->GetTimeEnd() << "\n";
     } else {
-      EUDAQ_WARN("Not exactly 1 SOF and EOF in frame");
-      //      std::cout << "3\n";
-      //      return false;
+      EUDAQ_WARN("Not possible to generate timestamp");
+      return false;
     }
 
     d2->SetDescription("RD50_MPW3");
