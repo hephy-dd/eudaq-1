@@ -25,20 +25,16 @@ public:
   static const uint32_t m_id_factory = eudaq::cstr2hash("Mpw3Producer");
 
 private:
-  unsigned m_ev;
+  unsigned mEvtNmb;
 
-  DeviceManager *manager_;
-  Device *device_;
-  std::string name_;
+  DeviceManager *mDevManager;
+  std::vector<Device *> mDevices;
+  std::string mName;
 
-  std::mutex device_mutex_;
-  LogLevel level_;
-  bool m_exit_of_run;
-
-  size_t number_of_subevents_{0};
-
-  std::string adc_signal_;
-  uint64_t adc_freq_;
+  std::mutex mDevMutex;
+  LogLevel mLogLvl;
+  bool mExitOfRun;
+  bool mPiggyAttached;
 };
 
 namespace {
@@ -50,31 +46,40 @@ auto dummy0 =
 
 Mpw3Producer::Mpw3Producer(const std::string name,
                            const std::string &runcontrol)
-    : eudaq::Producer(name, runcontrol), m_ev(0), m_exit_of_run(false),
-      name_(name) {
+    : eudaq::Producer(name, runcontrol), mEvtNmb(0), mExitOfRun(false),
+      mName(name) {
   // Add cout as the default logging stream
   Log::addStream(std::cout);
 
-  LOG(INFO) << "Instantiated CaribouProducer for device \"" << name << "\"";
+  LOG(INFO) << "Instantiated Mpw3Producer for device \"" << name << "\"";
 
   // Create new Peary device manager
-  manager_ = new DeviceManager();
+  mDevManager = new DeviceManager();
 }
 
-Mpw3Producer::~Mpw3Producer() { delete manager_; }
+Mpw3Producer::~Mpw3Producer() { delete mDevManager; }
 
 void Mpw3Producer::DoReset() {
   LOG(WARNING) << "Resetting CaribouProducer";
-  m_exit_of_run = true;
+  mExitOfRun = true;
 
   // Delete all devices:
-  std::lock_guard<std::mutex> lock{device_mutex_};
-  manager_->clearDevices();
+  std::lock_guard<std::mutex> lock{mDevMutex};
+  mDevManager->clearDevices();
 }
 
 void Mpw3Producer::DoInitialise() {
-  LOG(INFO) << "Initialising CaribouProducer";
+  LOG(INFO) << "Initialising Mpw3Producer";
   auto ini = GetInitConfiguration();
+
+  std::istringstream devicesStr(ini->Get("devices", std::string()));
+  std::string tmp;
+  std::vector<std::string> devices;
+
+  for (std::string tmp; std::getline(devicesStr, tmp, ',');) {
+
+    devices.push_back(tmp);
+  }
 
   auto level = ini->Get("log_level", "INFO");
   try {
@@ -86,7 +91,7 @@ void Mpw3Producer::DoInitialise() {
                << "\", ignoring.";
   }
 
-  level_ = Log::getReportingLevel();
+  mLogLvl = Log::getReportingLevel();
 
   // Open configuration file and create object:
   caribou::Configuration config;
@@ -102,16 +107,23 @@ void Mpw3Producer::DoInitialise() {
   }
 
   // Select section from the configuration file relevant for this device:
-  auto sections = config.GetSections();
-  if (std::find(sections.begin(), sections.end(), name_) != sections.end()) {
-    config.SetSection(name_);
-  }
+  //  auto sections = config.GetSections();
 
-  std::lock_guard<std::mutex> lock{device_mutex_};
-  size_t device_id = manager_->addDevice(name_, config);
-  EUDAQ_INFO("Manager returned device ID " + std::to_string(device_id) +
-             ", fetching device...");
-  device_ = manager_->getDevice(device_id);
+  std::lock_guard<std::mutex> lock{mDevMutex};
+
+  auto sections = config.GetSections();
+  for (const auto &d : devices) {
+    if (std::find(sections.begin(), sections.end(), d) != sections.end()) {
+      config.SetSection(d);
+    } else {
+      EUDAQ_WARN("no config section found for device " + d +
+                 " in Caribou config file");
+    }
+    auto id = mDevManager->addDevice(d, config);
+    EUDAQ_INFO("Manager returned device ID " + std::to_string(id) +
+               ", for device " + d);
+    mDevices.push_back(mDevManager->getDevice(id));
+  }
 }
 
 // This gets called whenever the DAQ is configured
@@ -119,74 +131,54 @@ void Mpw3Producer::DoConfigure() {
   auto config = GetConfiguration();
   LOG(INFO) << "Configuring CaribouProducer: " << config->Name();
 
-  std::lock_guard<std::mutex> lock{device_mutex_};
-  EUDAQ_INFO("Configuring device " + device_->getName());
+  std::lock_guard<std::mutex> lock{mDevMutex};
 
-  // Switch on the device power:
-  device_->powerOn();
+  for (auto dev : mDevices) {
+    EUDAQ_INFO("Configuring device " + dev->getName());
+    dev->powerOn();
+    // Wait for power to stabilize and for the TLU clock to be present
+    eudaq::mSleep(1000);
 
-  // Wait for power to stabilize and for the TLU clock to be present
-  eudaq::mSleep(1000);
-
-  // Configure the device
-  device_->configure();
-
-  // Set additional registers from the configuration:
-  if (config->Has("register_key") || config->Has("register_value")) {
-    auto key = config->Get("register_key", "");
-    auto value = config->Get("register_value", 0);
-    device_->setRegister(key, value);
-    EUDAQ_USER("Setting " + key + " = " + std::to_string(value));
+    dev->configure();
   }
 
-  // Select which ADC signal to regularly fetch:
-  adc_signal_ = config->Get("adc_signal", "");
-  adc_freq_ = config->Get("adc_frequency", 1000);
-
-  if (!adc_signal_.empty()) {
-    // Try it out directly to catch misconfiugration
-    auto adc_value = device_->getADC(adc_signal_);
-    EUDAQ_USER("Will probe ADC signal \"" + adc_signal_ + "\" every " +
-               std::to_string(adc_freq_) + " events");
-  }
-
-  // Allow to stack multiple sub-events
-  number_of_subevents_ = config->Get("number_of_subevents", 0);
-  EUDAQ_USER("Will stack " + std::to_string(number_of_subevents_) +
-             " subevents before sending event");
-
-  LOG(STATUS) << "CaribouProducer configured. Ready to start run.";
+  LOG(STATUS) << "Mpw3Producer configured. Ready to start run.";
 }
 
 void Mpw3Producer::DoStartRun() {
-  m_ev = 0;
+  mEvtNmb = 0;
 
   LOG(INFO) << "Starting run...";
 
   // Start the DAQ
-  std::lock_guard<std::mutex> lock{device_mutex_};
+  std::lock_guard<std::mutex> lock{mDevMutex};
 
   // Sending initial Begin-of-run event, just containing tags with detector
   // information: Create new event
-  auto event = eudaq::Event::MakeUnique("Caribou" + name_ + "Event");
+  auto event = eudaq::Event::MakeUnique("Caribou" + mName + "Event");
   event->SetBORE();
-  event->SetTag("software", device_->getVersion());
-  event->SetTag("firmware", device_->getFirmwareVersion());
-  event->SetTag("timestamp", LOGTIME);
+  for (auto dev : mDevices) {
+    event->SetTag(dev->getName() + " software", dev->getVersion());
+    event->SetTag(dev->getName() + "firmware", dev->getFirmwareVersion());
+    event->SetTag(dev->getName() + "timestamp", LOGTIME);
 
-  auto registers = device_->getRegisters();
-  for (const auto &reg : registers) {
-    event->SetTag(reg.first, reg.second);
+    auto registers = dev->getRegisters();
+    for (const auto &reg : registers) {
+      auto regName = dev->getName() + ":" + reg.first;
+      event->SetTag(regName, reg.second);
+    }
   }
 
   // Send the event to the Data Collector
   SendEvent(std::move(event));
 
   // Start DAQ:
-  device_->daqStart();
+  for (auto dev : mDevices) {
+    dev->daqStart();
+  }
 
   LOG(INFO) << "Started run.";
-  m_exit_of_run = false;
+  mExitOfRun = false;
 }
 
 void Mpw3Producer::DoStopRun() {
@@ -194,70 +186,47 @@ void Mpw3Producer::DoStopRun() {
   LOG(INFO) << "Stopping run...";
 
   // Set a flag to signal to the polling loop that the run is over
-  m_exit_of_run = true;
+  mExitOfRun = true;
 
   // Stop the DAQ
-  std::lock_guard<std::mutex> lock{device_mutex_};
-  device_->daqStop();
+  std::lock_guard<std::mutex> lock{mDevMutex};
+  for (auto dev : mDevices) {
+    dev->daqStop();
+  }
   LOG(INFO) << "Stopped run.";
 }
 
 void Mpw3Producer::RunLoop() {
 
-  Log::setReportingLevel(level_);
+  Log::setReportingLevel(mLogLvl);
 
   LOG(INFO) << "Starting run loop...";
-  std::lock_guard<std::mutex> lock{device_mutex_};
-
-  std::vector<eudaq::EventSPC> data_buffer;
-  while (!m_exit_of_run) {
+  std::lock_guard<std::mutex> lock{mDevMutex};
+  while (!mExitOfRun) {
     try {
-      // Retrieve data from the device:
-      auto data = device_->getRawData();
-
-      if (!data.empty()) {
-        // Create new event
-        auto event = eudaq::Event::MakeUnique("Caribou" + name_ + "Event");
-        // Set event ID
-        event->SetEventN(m_ev);
-        // Add data to the event
-        event->AddBlock(0, data);
-
-        // Query ADC if wanted:
-        if (m_ev % adc_freq_ == 0) {
-          if (!adc_signal_.empty()) {
-            auto adc_value = device_->getADC(adc_signal_);
-            LOG(DEBUG) << "Reading ADC: " << adc_value << "V";
-            EUDAQ_USER("ADC reading: " + adc_signal_ + " =  " +
-                       std::to_string(adc_value));
-            event->SetTag(adc_signal_, adc_value);
+      int devNmb = 0;
+      bool gotData = false;
+      eudaq::EventUP event = nullptr;
+      for (auto dev : mDevices) {
+        auto data = dev->getRawData();
+        if (!data.empty()) {
+          gotData = true;
+          // Create new event
+          if (event == nullptr) {
+            event = eudaq::Event::MakeUnique("Caribou" + mName + "Event");
+            // Set event ID
+            event->SetEventN(mEvtNmb);
           }
+          event->AddBlock(devNmb, data);
         }
-
-        if (number_of_subevents_ == 0) {
-          // We do not want to generate sub-events - send the event directly off
-          // to the Data Collector
-          SendEvent(std::move(event));
-        } else {
-          // We are still buffering sub-events, buffer not filled yet:
-          data_buffer.push_back(std::move(event));
-        }
+        devNmb++;
+      }
+      if (gotData) {
+        SendEvent(std::move(event));
+        mEvtNmb++;
       }
 
-      // Now increment the event number
-      m_ev++;
-
-      // Buffer of sub-events is full, let's ship this off to the Data Collector
-      if (!data_buffer.empty() && data_buffer.size() == number_of_subevents_) {
-        auto evup = eudaq::Event::MakeUnique("Caribou" + name_ + "Event");
-        for (auto &subevt : data_buffer) {
-          evup->AddSubEvent(subevt);
-        }
-        SendEvent(std::move(evup));
-        data_buffer.clear();
-      }
-
-      LOG_PROGRESS(STATUS, "status") << "Frame " << m_ev;
+      LOG_PROGRESS(STATUS, "status") << "Frame " << mEvtNmb;
     } catch (caribou::NoDataAvailable &) {
       continue;
     } catch (caribou::DataException &e) {
@@ -268,18 +237,6 @@ void Mpw3Producer::RunLoop() {
       EUDAQ_ERROR(e.what());
       break;
     }
-  }
-
-  // Send remaining pixel data:
-  if (!data_buffer.empty()) {
-    LOG(INFO) << "Sending remaining " << data_buffer.size()
-              << " events from data buffer";
-    auto evup = eudaq::Event::MakeUnique("Caribou" + name_ + "Event");
-    for (auto &subevt : data_buffer) {
-      evup->AddSubEvent(subevt);
-    }
-    SendEvent(std::move(evup));
-    data_buffer.clear();
   }
 
   LOG(INFO) << "Exiting run loop.";
