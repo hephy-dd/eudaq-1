@@ -1,6 +1,7 @@
-#include "elogrunctrl.h"
-#include "ui_elogrunctrl.h"
+#include "elogproducer.h"
+#include "ui_elogproducer.h"
 
+#include <QApplication>
 #include <QComboBox>
 #include <QDebug>
 #include <QFile>
@@ -9,73 +10,64 @@
 #include <QTime>
 
 namespace {
-auto dummy0 = eudaq::Factory<eudaq::RunControl>::Register<ElogRunCtrl,
-                                                          const std::string &>(
-    ElogRunCtrl::m_id_factory);
+auto dummy0 =
+    eudaq::Factory<eudaq::Producer>::Register<ElogProducer, const std::string &,
+                                              const std::string &>(
+        ElogProducer::m_id_factory);
 }
 
-ElogRunCtrl::ElogRunCtrl(const std::string &listenaddress, QWidget *parent)
-    : QWidget(parent), eudaq::RunControl(listenaddress),
+ElogProducer::ElogProducer(const std::string name,
+                           const std::string &runcontrol, QWidget *parent)
+    : QMainWindow(parent), eudaq::Producer(name, runcontrol),
       ui(new Ui::ElogRunCtrl),
       mSettings(QSettings("EUDAQ collaboration", "EUDAQ")) {
   ui->setupUi(this);
   this->show();
-  connect(ui->pbSubmit, &QPushButton::clicked, this, &ElogRunCtrl::submit);
-  mSettings.beginGroup("ElogRC");
+  connect(ui->pbSubmit, &QPushButton::clicked, this, &ElogProducer::submit);
+  connect(ui->lePass, &QLineEdit::textChanged, &mElog, &Elog::setPass);
+  connect(ui->leUser, &QLineEdit::textChanged, &mElog, &Elog::setUser);
+  mSettings.beginGroup("ElogProducer");
 }
 
-ElogRunCtrl::~ElogRunCtrl() { delete ui; }
+ElogProducer::~ElogProducer() { delete ui; }
 
-void ElogRunCtrl::Initialise() {
-  RunControl::Initialise();
-
+void ElogProducer::DoInitialise() {
   elogSetup();
   populateUi();
 }
 
-void ElogRunCtrl::Configure() {
-  RunControl::Configure();
+void ElogProducer::DoConfigure() {
   // store path to config file for later attaching it to log
   mConfigFile = GetConfiguration()->Name().c_str();
 }
 
-void ElogRunCtrl::StartRun() {
-  RunControl::StartRun();
+void ElogProducer::DoStartRun() {
   mStartTime = QDateTime::currentDateTime();
-  mCurrRunN = GetRunN();
+  mCurrRunN = GetRunNumber();
 }
 
-void ElogRunCtrl::StopRun() {
-  RunControl::StopRun();
+void ElogProducer::DoStopRun() {
   mStopTime = QDateTime::currentDateTime();
   if (ui->cbAutoSubmit->isChecked()) {
     submit(true);
   }
 }
 
-void ElogRunCtrl::Exec() { RunControl::Exec(); }
+void ElogProducer::DoReset() { mElog.reset(); }
 
-void ElogRunCtrl::Reset() {
-  RunControl::Reset();
-  mElog.reset();
-}
-
-void ElogRunCtrl::Terminate() {
-  RunControl::Terminate();
+void ElogProducer::DoTerminate() {
   saveCurrentElogSetup();
   close();
 }
 
-void ElogRunCtrl::submit(bool autoSubmit) {
+void ElogProducer::submit(bool autoSubmit) {
   auto msg = ui->teMessage->toPlainText();
   if (autoSubmit) {
     msg = QString("automatic log for run %1").arg(mCurrRunN);
     msg += "\nComment:\n" + ui->teMessage->toPlainText();
   }
-  auto succ = mElog.submitEntry(
-      attributesSet(), msg, autoSubmit, mCurrRunN, eventsCurrRun(),
-      mStartTime.toString("dd.MM.yyyy hh:mm:ss"),
-      mStopTime.toString("dd.MM.yyyy hh:mm:ss"), mConfigFile);
+  auto succ = mElog.submitEntry(attributesSet(), msg, autoSubmit, mCurrRunN,
+                                mStartTime, mStopTime, mConfigFile);
   if (succ) {
     if (autoSubmit) {
       ui->tbLog->insertPlainText(
@@ -93,7 +85,7 @@ void ElogRunCtrl::submit(bool autoSubmit) {
   }
 }
 
-void ElogRunCtrl::populateUi() {
+void ElogProducer::populateUi() {
   int i = 0;
   foreach (const auto &att, mAttributes) {
     auto item = new QTableWidgetItem(att.name);
@@ -126,10 +118,16 @@ void ElogRunCtrl::populateUi() {
       }
       cb->setCurrentText(mSettings.value(att.name).toString());
     }
+
+    auto pass = mSettings.value("pass").toString();
+    auto user = mSettings.value("user").toString();
+
+    mElog.setPass(pass);
+    mElog.setUser(user);
   }
 }
 
-void ElogRunCtrl::elogSetup() {
+void ElogProducer::elogSetup() {
   auto ini = GetInitConfiguration();
   auto attributes = ini->Get("Attributes", "");
   auto reqAtt = ini->Get("Required Attributes", "");
@@ -147,11 +145,11 @@ void ElogRunCtrl::elogSetup() {
   auto startTAtt = ini->Get("att_start_time", "Start-Time");
   auto stopTAtt = ini->Get("att_stop_time", "Stop-Time");
   auto runNmbAtt = ini->Get("att_run_number", "Run-ID");
-  auto nEventAtt = ini->Get("att_event_cnt", "");
+  auto runDurAtt = ini->Get("att_run_duration", "");
   mElog.setAttStopT(stopTAtt.c_str());
   mElog.setAttStartT(startTAtt.c_str());
   mElog.setAttRunNmb(runNmbAtt.c_str());
-  mElog.setAttEventCnt(nEventAtt.c_str());
+  mElog.setAttRunDur(runDurAtt.c_str());
   QStringList specialAtt;
   specialAtt << mElog.attRunNmb() << mElog.attStartT() << mElog.attStopT();
 
@@ -197,11 +195,9 @@ void ElogRunCtrl::elogSetup() {
   mElog.setHost(ini->Get("elog_host", "localhost").c_str());
   mElog.setPort(ini->Get("elog_port", 8080));
   mElog.setLogbook(ini->Get("elog_logbook", "").c_str());
-  mElog.setUser(ini->Get("user", "").c_str());
-  mElog.setPass(ini->Get("password", "").c_str());
 }
 
-QStringList ElogRunCtrl::parseElogCfgLine(const std::string &key) {
+QStringList ElogProducer::parseElogCfgLine(const std::string &key) {
   QString tmp(key.c_str());
   auto list = tmp.split(",");
   QStringList retval;
@@ -213,33 +209,8 @@ QStringList ElogRunCtrl::parseElogCfgLine(const std::string &key) {
   return list;
 }
 
-int ElogRunCtrl::eventsCurrRun() {
-  auto conns = GetActiveConnectionStatusMap();
-  for (const auto &conn : conns) {
-    qDebug() << conn.first->GetName().c_str();
-    // look for the connection from which we should extract number of events
-    if (mEventCntConn != conn.first->GetName().c_str()) {
-      continue;
-    }
-    auto tags = conn.second->GetTags();
-    for (const auto &tag : tags) {
-      // tag EventN specifies the number of events during the current run
-      if (QString(tag.first.c_str()).trimmed() != "EventN") {
-        continue;
-      }
-      bool ok;
-      QString tmp(tag.second.c_str());
-      auto eventCnt = tmp.toInt(&ok);
-      if (ok) {
-        return eventCnt;
-      }
-    }
-  }
-  return -1;
-}
-
-QList<ElogRunCtrl::SetAtt> ElogRunCtrl::attributesSet() {
-  QList<ElogRunCtrl::SetAtt> attributes;
+QList<ElogProducer::SetAtt> ElogProducer::attributesSet() {
+  QList<ElogProducer::SetAtt> attributes;
   for (int i = 0; i < ui->twAtt->rowCount(); i++) {
     SetAtt att;
     auto nameItem = ui->twAtt->item(i, 0);
@@ -262,7 +233,10 @@ QList<ElogRunCtrl::SetAtt> ElogRunCtrl::attributesSet() {
   return attributes;
 }
 
-bool ElogRunCtrl::saveCurrentElogSetup() {
+bool ElogProducer::saveCurrentElogSetup() {
+  mSettings.setValue("pass", ui->lePass->text());
+  mSettings.setValue("user", ui->leUser->text());
+
   auto setAtts = attributesSet();
   foreach (const auto &att, setAtts) {
     mSettings.setValue(att.first, att.second);

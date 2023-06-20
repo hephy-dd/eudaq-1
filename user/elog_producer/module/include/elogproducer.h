@@ -1,35 +1,35 @@
 #ifndef ELOGRUNCTRL_H
 #define ELOGRUNCTRL_H
 
-#include "RunControl.hh"
+#include "Producer.hh"
 #include "elog.h"
 
 #include <QWidget>
 #include <QMap>
 #include <QDateTime>
 #include <QSettings>
+#include <QMainWindow>
 
 namespace Ui {
 class ElogRunCtrl;
 }
 
-class ElogRunCtrl : public QWidget, public eudaq::RunControl
+class ElogProducer : public QMainWindow, public eudaq::Producer
 {
     Q_OBJECT
 
 public:
-    explicit ElogRunCtrl(const std::string &listenaddress = "",QWidget *parent = nullptr);
-    ~ElogRunCtrl();
+    explicit ElogProducer(const std::string name, const std::string &runcontrol = "", QWidget *parent = nullptr);
+    ~ElogProducer();
 
-    void Initialise() override;
-    void Configure() override;
-    void StartRun() override;
-    void StopRun() override;
-    void Exec() override;
-    void Reset() override;
-    void Terminate() override;
+    void DoInitialise() override;
+    void DoConfigure() override;
+    void DoStartRun() override;
+    void DoStopRun() override;
+    void DoReset() override;
+    void DoTerminate() override;
 
-    static const uint32_t m_id_factory = eudaq::cstr2hash("ElogRC");
+    static const uint32_t m_id_factory = eudaq::cstr2hash("elog");
 
 private slots:
     void submit(bool autoSubmit = false);
@@ -47,7 +47,6 @@ private:
     void populateUi();
     void elogSetup();
     QStringList parseElogCfgLine(const std::string &key);
-    int eventsCurrRun();
     QList<SetAtt> attributesSet();
     bool saveCurrentElogSetup();
 

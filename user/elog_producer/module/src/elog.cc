@@ -23,8 +23,8 @@ void Elog::setPort(uint32_t newPort) { mPort = newPort; }
 
 bool Elog::submitEntry(const QList<QPair<QString, QString>> &attributes,
                        const QString &message, bool autoSubmit, int runNmb,
-                       int nEvents, const QString &startTime,
-                       const QString &stopTime, const QString &configFile) {
+                       const QDateTime &startTime, const QDateTime &stopTime,
+                       const QString &configFile) {
   QFile msgFile(tmpFile);
   if (!msgFile.open(QIODevice::WriteOnly)) {
     qWarning("error opening temp file");
@@ -50,11 +50,15 @@ bool Elog::submitEntry(const QList<QPair<QString, QString>> &attributes,
     args << "-a" << QString("%1=%2").arg(att.first, att.second);
   }
   if (autoSubmit) {
-    args << "-a" << QString("%1=%2").arg(mAttStartT, startTime);
-    args << "-a" << QString("%1=%2").arg(mAttStopT, stopTime);
-    args << "-a" << QString("%1=%2").arg(mAttRunNmb, QString::number(runNmb));
+    auto runTimeM = startTime.secsTo(stopTime) / 60;
+    const QString timeFormat = "dd.MM.yyyy hh:mm:ss";
+
     args << "-a"
-         << QString("%1=%2").arg(mAttEventCnt, QString::number(nEvents));
+         << QString("%1=%2").arg(mAttStartT, startTime.toString(timeFormat));
+    args << "-a"
+         << QString("%1=%2").arg(mAttStopT, stopTime.toString(timeFormat));
+    args << "-a" << QString("%1=%2").arg(mAttRunNmb, QString::number(runNmb));
+    args << "-a" << QString("%1=%2").arg(mAttRunDur, QString::number(runTimeM));
 
     // attach config file to the log message
     if (!configFile.isEmpty()) {
@@ -116,11 +120,10 @@ const QString &Elog::attRunNmb() const { return mAttRunNmb; }
 void Elog::setAttRunNmb(const QString &newAttRunNmb) {
   mAttRunNmb = newAttRunNmb;
 }
+QString Elog::attRunDur() const { return mAttRunDur; }
 
-QString Elog::attEventCnt() const { return mAttEventCnt; }
-
-void Elog::setAttEventCnt(const QString &newAttEventCnt) {
-  mAttEventCnt = newAttEventCnt;
+void Elog::setAttRunDur(const QString &newAttRunDur) {
+  mAttRunDur = newAttRunDur;
 }
 
 void Elog::setUser(const QString &newUser) { mUser = newUser; }

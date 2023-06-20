@@ -15,8 +15,17 @@
   </property>
   <layout class="QGridLayout" name="gridLayout_2">
    <item row="0" column="0">
-    <layout class="QGridLayout" name="gridLayout" rowstretch="0,0,0,0,0" columnstretch="5,0,0">
-     <item row="2" column="1">
+    <layout class="QGridLayout" name="gridLayout" rowstretch="0,0,0,0,0,0,0" columnstretch="5,0,0">
+     <item row="6" column="2">
+      <widget class="QTextBrowser" name="tbLog"/>
+     </item>
+     <item row="3" column="2">
+      <widget class="QLineEdit" name="leUser"/>
+     </item>
+     <item row="6" column="0">
+      <widget class="QTextEdit" name="teMessage"/>
+     </item>
+     <item row="2" column="2">
       <widget class="QCheckBox" name="cbAutoSubmit">
        <property name="toolTip">
         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enable auto submission of elog entry when a run is stopped&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -29,10 +38,24 @@
        </property>
       </widget>
      </item>
-     <item row="4" column="0">
-      <widget class="QTextEdit" name="teMessage"/>
+     <item row="1" column="2">
+      <widget class="QPushButton" name="pbSubmit">
+       <property name="toolTip">
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Submit Elog message manually&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       </property>
+       <property name="text">
+        <string>Manual Submit</string>
+       </property>
+      </widget>
      </item>
-     <item row="0" column="0" rowspan="4">
+     <item row="4" column="2">
+      <widget class="QLineEdit" name="lePass">
+       <property name="echoMode">
+        <enum>QLineEdit::Password</enum>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="0" rowspan="6">
       <widget class="QTableWidget" name="twAtt">
        <property name="columnCount">
         <number>2</number>
@@ -49,7 +72,7 @@
        </column>
       </widget>
      </item>
-     <item row="3" column="1">
+     <item row="5" column="2">
       <spacer name="verticalSpacer">
        <property name="orientation">
         <enum>Qt::Vertical</enum>
@@ -62,16 +85,17 @@
        </property>
       </spacer>
      </item>
-     <item row="4" column="1">
-      <widget class="QTextBrowser" name="tbLog"/>
-     </item>
-     <item row="1" column="1">
-      <widget class="QPushButton" name="pbSubmit">
-       <property name="toolTip">
-        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Submit Elog message manually&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-       </property>
+     <item row="3" column="1">
+      <widget class="QLabel" name="label">
        <property name="text">
-        <string>Manual Submit</string>
+        <string>User</string>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="1">
+      <widget class="QLabel" name="label_2">
+       <property name="text">
+        <string>Pass</string>
        </property>
       </widget>
      </item>
