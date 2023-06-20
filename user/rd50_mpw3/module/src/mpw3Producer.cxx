@@ -77,8 +77,7 @@ void Mpw3Producer::DoInitialise() {
   std::vector<std::string> devices;
 
   for (std::string tmp; std::getline(devicesStr, tmp, ',');) {
-
-    devices.push_back(tmp);
+    devices.push_back(trim(tmp));
   }
 
   auto level = ini->Get("log_level", "INFO");
