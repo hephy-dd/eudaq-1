@@ -18,8 +18,8 @@ auto dummy0 =
 
 ElogProducer::ElogProducer(const std::string name,
                            const std::string &runcontrol, QWidget *parent)
-    : QMainWindow(parent), eudaq::Producer(name, runcontrol),
-      ui(new Ui::ElogRunCtrl),
+    : QWidget(parent), eudaq::Producer(name, runcontrol),
+      ui(new Ui::ElogProducer),
       mSettings(QSettings("EUDAQ collaboration", "EUDAQ")) {
   ui->setupUi(this);
   this->show();
@@ -86,6 +86,7 @@ void ElogProducer::submit(bool autoSubmit) {
 }
 
 void ElogProducer::populateUi() {
+  qDebug() << "1";
   int i = 0;
   foreach (const auto &att, mAttributes) {
     auto item = new QTableWidgetItem(att.name);
@@ -100,7 +101,7 @@ void ElogProducer::populateUi() {
     } else {
       ui->twAtt->setItem(i, 1, new QTableWidgetItem());
     }
-
+    qDebug() << "2";
     // restore old settings if there are some in cache matching our config
     if (mSettings.allKeys().contains(att.name)) {
       auto item = ui->twAtt->item(i, 1);
@@ -124,6 +125,7 @@ void ElogProducer::populateUi() {
 
     mElog.setPass(pass);
     mElog.setUser(user);
+    qDebug() << "3";
   }
 }
 
@@ -131,6 +133,7 @@ void ElogProducer::elogSetup() {
   auto ini = GetInitConfiguration();
   auto attributes = ini->Get("Attributes", "");
   auto reqAtt = ini->Get("Required Attributes", "");
+  qDebug() << "1";
 
   ui->twAtt->setRowCount(0);
   mAttributes.clear();
@@ -162,6 +165,7 @@ void ElogProducer::elogSetup() {
    * the options "Routine", "Software Installation",... (you get it ;) )
    */
 
+  qDebug() << "2";
   QRegularExpression optionRegex(R"(Options (.+))");
   QMap<QString, QStringList> options;
   for (const auto &k : keys) {
@@ -190,7 +194,7 @@ void ElogProducer::elogSetup() {
     //    attribute.options
     //             << " req? " << attribute.required;
   }
-
+  qDebug() << "3";
   mElog.setElogProgramPath(ini->Get("elog_installation", "elog").c_str());
   mElog.setHost(ini->Get("elog_host", "localhost").c_str());
   mElog.setPort(ini->Get("elog_port", 8080));

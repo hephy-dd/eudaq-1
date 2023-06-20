@@ -11,10 +11,10 @@
 #include <QMainWindow>
 
 namespace Ui {
-class ElogRunCtrl;
+class ElogProducer;
 }
 
-class ElogProducer : public QMainWindow, public eudaq::Producer
+class ElogProducer : public QWidget, public eudaq::Producer
 {
     Q_OBJECT
 
@@ -50,7 +50,7 @@ private:
     QList<SetAtt> attributesSet();
     bool saveCurrentElogSetup();
 
-    Ui::ElogRunCtrl *ui;    
+    Ui::ElogProducer *ui;
     AttList mAttributes;
     Elog mElog;
     QDateTime mStartTime, mStopTime;
