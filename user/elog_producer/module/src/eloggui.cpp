@@ -1,4 +1,4 @@
-#include "elogproducer.h"
+#include "eloggui.h"
 #include "ui_elogproducer.h"
 
 #include <QApplication>
@@ -9,64 +9,62 @@
 #include <QSettings>
 #include <QTime>
 
-ElogProducer::ElogProducer(const std::string name,
-                           const std::string &runcontrol, QWidget *parent)
+ElogGui::ElogGui(const std::string name, const std::string &runcontrol,
+                 QWidget *parent)
     : QWidget(parent), ui(new Ui::ElogProducer),
       mSettings(QSettings("EUDAQ collaboration", "EUDAQ")),
       mProxy(name, runcontrol, this) {
   ui->setupUi(this);
   this->show();
-  connect(ui->pbSubmit, &QPushButton::clicked, this, &ElogProducer::submit);
+  connect(ui->pbSubmit, &QPushButton::clicked, this, &ElogGui::submit);
   connect(ui->lePass, &QLineEdit::textChanged, &mElog, &Elog::setPass);
   connect(ui->leUser, &QLineEdit::textChanged, &mElog, &Elog::setUser);
 
   connect(&mProxy, &Producer2GUIProxy::initialize, this,
-          &ElogProducer::DoInitialise);
-  connect(&mProxy, &Producer2GUIProxy::configure, this,
-          &ElogProducer::DoConfigure);
-  connect(&mProxy, &Producer2GUIProxy::reset, this, &ElogProducer::DoReset);
-  connect(&mProxy, &Producer2GUIProxy::start, this, &ElogProducer::DoStartRun);
-  connect(&mProxy, &Producer2GUIProxy::stop, this, &ElogProducer::DoStopRun);
-  connect(&mProxy, &Producer2GUIProxy::terminate, this,
-          &ElogProducer::DoTerminate);
+          &ElogGui::DoInitialise);
+  connect(&mProxy, &Producer2GUIProxy::configure, this, &ElogGui::DoConfigure);
+  connect(&mProxy, &Producer2GUIProxy::reset, this, &ElogGui::DoReset);
+  connect(&mProxy, &Producer2GUIProxy::start, this, &ElogGui::DoStartRun);
+  connect(&mProxy, &Producer2GUIProxy::stop, this, &ElogGui::DoStopRun);
+  connect(&mProxy, &Producer2GUIProxy::terminate, this, &ElogGui::DoTerminate);
 
   mSettings.beginGroup("ElogProducer");
 }
 
-ElogProducer::~ElogProducer() { delete ui; }
+ElogGui::~ElogGui() { delete ui; }
 
-std::string ElogProducer::Connect() { return mProxy.Connect(); }
+std::string ElogGui::Connect() { return mProxy.Connect(); }
 
-void ElogProducer::DoInitialise(const eudaq::ConfigurationSPC &ini) {
+void ElogGui::DoInitialise(const eudaq::ConfigurationSPC &ini) {
   elogSetup(ini);
   populateUi();
 }
 
-void ElogProducer::DoConfigure(const eudaq::ConfigurationSPC &conf) {
+void ElogGui::DoConfigure(const eudaq::ConfigurationSPC &conf) {
   // store path to config file for later attaching it to log
   mConfigFile = conf->Name().c_str();
 }
 
-void ElogProducer::DoStartRun(int runNmb) {
+void ElogGui::DoStartRun(int runNmb) {
   mStartTime = QDateTime::currentDateTime();
   mCurrRunN = runNmb;
 }
 
-void ElogProducer::DoStopRun() {
+void ElogGui::DoStopRun() {
   mStopTime = QDateTime::currentDateTime();
   if (ui->cbAutoSubmit->isChecked()) {
     submit(true);
   }
 }
 
-void ElogProducer::DoReset() { mElog.reset(); }
+void ElogGui::DoReset() { mElog.reset(); }
 
-void ElogProducer::DoTerminate() {
+void ElogGui::DoTerminate() {
   saveCurrentElogSetup();
   close();
 }
 
-void ElogProducer::submit(bool autoSubmit) {
+void ElogGui::submit(bool autoSubmit) {
   auto msg = ui->teMessage->toPlainText();
   if (autoSubmit) {
     msg = QString("automatic log for run %1").arg(mCurrRunN);
@@ -91,7 +89,7 @@ void ElogProducer::submit(bool autoSubmit) {
   }
 }
 
-void ElogProducer::populateUi() {
+void ElogGui::populateUi() {
   qDebug() << "1";
   int i = 0;
   foreach (const auto &att, mAttributes) {
@@ -135,7 +133,7 @@ void ElogProducer::populateUi() {
   }
 }
 
-void ElogProducer::elogSetup(const eudaq::ConfigurationSPC &ini) {
+void ElogGui::elogSetup(const eudaq::ConfigurationSPC &ini) {
   auto attributes = ini->Get("Attributes", "");
   auto reqAtt = ini->Get("Required Attributes", "");
   qDebug() << "1";
@@ -206,7 +204,7 @@ void ElogProducer::elogSetup(const eudaq::ConfigurationSPC &ini) {
   mElog.setLogbook(ini->Get("elog_logbook", "").c_str());
 }
 
-QStringList ElogProducer::parseElogCfgLine(const std::string &key) {
+QStringList ElogGui::parseElogCfgLine(const std::string &key) {
   QString tmp(key.c_str());
   auto list = tmp.split(",");
   QStringList retval;
@@ -218,8 +216,8 @@ QStringList ElogProducer::parseElogCfgLine(const std::string &key) {
   return list;
 }
 
-QList<ElogProducer::SetAtt> ElogProducer::attributesSet() {
-  QList<ElogProducer::SetAtt> attributes;
+QList<ElogGui::SetAtt> ElogGui::attributesSet() {
+  QList<ElogGui::SetAtt> attributes;
   for (int i = 0; i < ui->twAtt->rowCount(); i++) {
     SetAtt att;
     auto nameItem = ui->twAtt->item(i, 0);
@@ -242,7 +240,7 @@ QList<ElogProducer::SetAtt> ElogProducer::attributesSet() {
   return attributes;
 }
 
-bool ElogProducer::saveCurrentElogSetup() {
+bool ElogGui::saveCurrentElogSetup() {
   mSettings.setValue("pass", ui->lePass->text());
   mSettings.setValue("user", ui->leUser->text());
 

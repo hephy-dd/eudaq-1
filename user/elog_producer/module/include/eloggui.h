@@ -1,7 +1,6 @@
 #ifndef ELOGRUNCTRL_H
 #define ELOGRUNCTRL_H
 
-#include "Producer.hh"
 #include "elog.h"
 #include "producer2guiproxy.h"
 
@@ -15,13 +14,13 @@ namespace Ui {
 class ElogProducer;
 }
 
-class ElogProducer : public QWidget
+class ElogGui : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit ElogProducer(const std::string name, const std::string &runcontrol = "", QWidget *parent = nullptr);
-    ~ElogProducer();
+    explicit ElogGui(const std::string name, const std::string &runcontrol = "", QWidget *parent = nullptr);
+    ~ElogGui();
 
     static const uint32_t m_id_factory = eudaq::cstr2hash("elog");
     std::string Connect();

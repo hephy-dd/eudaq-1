@@ -1,4 +1,4 @@
-#include "elogproducer.h"
+#include "eloggui.h"
 #include "eudaq/OptionParser.hh"
 #include <QApplication>
 #include <iostream>
@@ -19,9 +19,9 @@ int main(int argc, char **argv) {
     std::ostringstream err;
     return op.HandleMainException(err);
   }
-  ElogProducer prod(tname.Value(), rctrl.Value());
+  ElogGui gui(tname.Value(), rctrl.Value());
   try {
-    prod.Connect();
+    gui.Connect(); // connecting to run control
   } catch (...) {
     std::cout << "Can not connect to RunControl at " << rctrl.Value()
               << std::endl;
