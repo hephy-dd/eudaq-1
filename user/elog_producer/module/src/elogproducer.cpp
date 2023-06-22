@@ -9,41 +9,47 @@
 #include <QSettings>
 #include <QTime>
 
-namespace {
-auto dummy0 =
-    eudaq::Factory<eudaq::Producer>::Register<ElogProducer, const std::string &,
-                                              const std::string &>(
-        ElogProducer::m_id_factory);
-}
-
 ElogProducer::ElogProducer(const std::string name,
                            const std::string &runcontrol, QWidget *parent)
-    : QWidget(parent), eudaq::Producer(name, runcontrol),
-      ui(new Ui::ElogProducer),
-      mSettings(QSettings("EUDAQ collaboration", "EUDAQ")) {
+    : QWidget(parent), ui(new Ui::ElogProducer),
+      mSettings(QSettings("EUDAQ collaboration", "EUDAQ")),
+      mProxy(name, runcontrol, this) {
   ui->setupUi(this);
   this->show();
   connect(ui->pbSubmit, &QPushButton::clicked, this, &ElogProducer::submit);
   connect(ui->lePass, &QLineEdit::textChanged, &mElog, &Elog::setPass);
   connect(ui->leUser, &QLineEdit::textChanged, &mElog, &Elog::setUser);
+
+  connect(&mProxy, &Producer2GUIProxy::initialize, this,
+          &ElogProducer::DoInitialise);
+  connect(&mProxy, &Producer2GUIProxy::configure, this,
+          &ElogProducer::DoConfigure);
+  connect(&mProxy, &Producer2GUIProxy::reset, this, &ElogProducer::DoReset);
+  connect(&mProxy, &Producer2GUIProxy::start, this, &ElogProducer::DoStartRun);
+  connect(&mProxy, &Producer2GUIProxy::stop, this, &ElogProducer::DoStopRun);
+  connect(&mProxy, &Producer2GUIProxy::terminate, this,
+          &ElogProducer::DoTerminate);
+
   mSettings.beginGroup("ElogProducer");
 }
 
 ElogProducer::~ElogProducer() { delete ui; }
 
-void ElogProducer::DoInitialise() {
-  elogSetup();
+std::string ElogProducer::Connect() { return mProxy.Connect(); }
+
+void ElogProducer::DoInitialise(const eudaq::ConfigurationSPC &ini) {
+  elogSetup(ini);
   populateUi();
 }
 
-void ElogProducer::DoConfigure() {
+void ElogProducer::DoConfigure(const eudaq::ConfigurationSPC &conf) {
   // store path to config file for later attaching it to log
-  mConfigFile = GetConfiguration()->Name().c_str();
+  mConfigFile = conf->Name().c_str();
 }
 
-void ElogProducer::DoStartRun() {
+void ElogProducer::DoStartRun(int runNmb) {
   mStartTime = QDateTime::currentDateTime();
-  mCurrRunN = GetRunNumber();
+  mCurrRunN = runNmb;
 }
 
 void ElogProducer::DoStopRun() {
@@ -129,8 +135,7 @@ void ElogProducer::populateUi() {
   }
 }
 
-void ElogProducer::elogSetup() {
-  auto ini = GetInitConfiguration();
+void ElogProducer::elogSetup(const eudaq::ConfigurationSPC &ini) {
   auto attributes = ini->Get("Attributes", "");
   auto reqAtt = ini->Get("Required Attributes", "");
   qDebug() << "1";

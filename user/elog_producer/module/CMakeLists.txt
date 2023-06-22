@@ -11,10 +11,11 @@ include_directories(include)
 #aux_source_directory(src MODULE_SRC)
 
 qt5_wrap_ui(elogProd_UISrcs ui/elogproducer.ui)
-qt5_wrap_cpp(elogProd_MOCSrcs include/elogproducer.h include/elog.h)
+qt5_wrap_cpp(elogProd_MOCSrcs include/elogproducer.h include/elog.h include/producer2guiproxy.h)
 
 set(ELOG_PROD_GUI_SRC
   src/elogproducer.cpp
+  src/producer2guiproxy.cpp
   src/elog.cc
   src/euElog.cxx
   )
