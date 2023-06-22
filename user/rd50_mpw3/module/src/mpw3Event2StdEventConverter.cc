@@ -2,7 +2,7 @@
 #include "eudaq/RawEvent.hh"
 #include "eudaq/StdEventConverter.hh"
 
-class Mpw3FrameEvent2StdEventConverter : public eudaq::StdEventConverter {
+class Mpw3Raw2StdEventConverter : public eudaq::StdEventConverter {
 public:
   bool Converting(eudaq::EventSPC d1, eudaq::StdEventSP d2,
                   eudaq::ConfigSPC conf) const override;
@@ -10,15 +10,15 @@ public:
   static bool foundT0;
 };
 
-bool Mpw3FrameEvent2StdEventConverter::foundT0 = false;
+bool Mpw3Raw2StdEventConverter::foundT0 = false;
 
 namespace {
 auto dummy0 = eudaq::Factory<eudaq::StdEventConverter>::Register<
-    Mpw3FrameEvent2StdEventConverter>(
-    Mpw3FrameEvent2StdEventConverter::m_id_factory);
+    Mpw3Raw2StdEventConverter>(
+    Mpw3Raw2StdEventConverter::m_id_factory);
 }
 
-bool Mpw3FrameEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
+bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
                                                   eudaq::StdEventSP d2,
                                                   eudaq::ConfigSPC conf) const {
   double t0 = -1.0;
