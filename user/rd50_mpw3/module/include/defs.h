@@ -183,9 +183,19 @@ struct HitInfo {
       if (sof) {
         ss << "iniWord = " << std::hex << initialWord << std::dec << " SOF ";
         ss << "ovflwCnt = " << OvFlwCnt;
+        if (piggy) {
+            ss << "   Piggy";
+        } else {
+            ss << "   Base";
+        }
       } else if (eof) {
         ss << "iniWord = " << std::hex << initialWord << std::dec << " EOF ";
         ss << "ovflwCnt = " << OvFlwCnt;
+        if (piggy) {
+            ss << "   Piggy";
+        } else {
+            ss << "   Base";
+        }
       } else {
         ss << "iniWord = " << std::hex << initialWord << std::dec
            << " triggerNmb = " << triggerNmb;

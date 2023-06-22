@@ -14,16 +14,17 @@ bool Mpw3Raw2StdEventConverter::foundT0 = false;
 
 namespace {
 auto dummy0 = eudaq::Factory<eudaq::StdEventConverter>::Register<
-    Mpw3Raw2StdEventConverter>(
-    Mpw3Raw2StdEventConverter::m_id_factory);
+    Mpw3Raw2StdEventConverter>(Mpw3Raw2StdEventConverter::m_id_factory);
 }
 
 bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
-                                                  eudaq::StdEventSP d2,
-                                                  eudaq::ConfigSPC conf) const {
+                                           eudaq::StdEventSP d2,
+                                           eudaq::ConfigSPC conf) const {
   double t0 = -1.0;
+  bool filterZeroWords = true;
   if (conf != nullptr) {
     t0 = conf->Get("t0_skip_time", -1.0);
+    filterZeroWords = conf->Get("filter_zeros", true);
   }
   auto ev = std::dynamic_pointer_cast<const eudaq::RawEvent>(d1);
 
@@ -46,7 +47,7 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
     memcpy(rawdata.data(), block.data(), rawdata.size() * sizeWord);
 
     eudaq::StandardPlane basePlane(0, "Base", "RD50_MPW3_base");
-    eudaq::StandardPlane piggyPlane(1, "Piggy", "RD50_MPW3_piggy");
+    eudaq::StandardPlane piggyPlane(0, "Piggy", "RD50_MPW3_piggy");
     basePlane.SetSizeZS(DefsMpw3::dimSensorCol, DefsMpw3::dimSensorRow, 0);
     piggyPlane.SetSizeZS(DefsMpw3::dimSensorCol, DefsMpw3::dimSensorRow, 0);
     DefsMpw3::word_t sofWord, eofWord;
@@ -62,6 +63,17 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
        * each word represents a particle detection in the specified pixel for a
        * certain ToT.
        */
+
+      if (filterZeroWords && (word == 0 || word == (1 << 23))) {
+        /* during UDP pack construction in FW the FIFOs for piggy and base get
+         * pulled alternatingly if there is only data left in one of the two,
+         * the other one still gets pulled (which results in 0x0 or 0x800000 (
+         * bit 23 set to indicate piggy))
+         * we might want to skip these words as they would be interpreted as
+         * pixel 00:00 with TS-LE = TS-TE = 0
+         */
+        continue;
+      }
 
       DefsMpw3::HitInfo hi(word);
       if (hi.sof) {
@@ -85,6 +97,7 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
         auto eofOvflw = DefsMpw3::frameOvflw(sofWord, eofWord, true);
         minSofOvflw = minSofOvflw > sofOvflw ? sofOvflw : minSofOvflw;
         maxEofOvflw = maxEofOvflw < eofOvflw ? eofOvflw : maxEofOvflw;
+        continue;
       }
       if (hi.triggerNmb > 0) {
         // trigger numbers are alrdy in raw eudaq event, don't deal with them
