@@ -31,7 +31,9 @@ ElogGui::ElogGui(const std::string name, const std::string &runcontrol,
   connect(&mProxy, &Producer2GUIProxy::stop, this, &ElogGui::DoStopRun);
   connect(&mProxy, &Producer2GUIProxy::terminate, this, &ElogGui::DoTerminate);
 
-  mSettings.beginGroup("ElogProducer");
+  mSettings.beginGroup("ElogProducer:" + QString(name.c_str()));
+
+  setWindowTitle(name.c_str());
 }
 
 ElogGui::~ElogGui() { delete ui; }
@@ -39,9 +41,17 @@ ElogGui::~ElogGui() { delete ui; }
 std::string ElogGui::Connect() { return mProxy.Connect(); }
 
 void ElogGui::DoInitialise(const eudaq::ConfigurationSPC &ini) {
-  ini->Print();
   elogSetup(ini);
   populateUi();
+
+  auto pass = mSettings.value("pass").toString();
+  auto user = mSettings.value("user").toString();
+
+  ui->leUser->setText(user);
+  ui->lePass->setText(pass);
+
+  mElog.setPass(pass);
+  mElog.setUser(user);
 }
 
 void ElogGui::DoConfigure(const eudaq::ConfigurationSPC &conf) {
@@ -97,7 +107,6 @@ void ElogGui::populateUi() {
   int i = 0;
   foreach (const auto &att, mAttributes) {
 
-    qDebug() << "placing " << att.name;
     auto item = new QTableWidgetItem(att.name);
     ui->twAtt->setRowCount(i + 1);
     ui->twAtt->setItem(i, 0, item);
@@ -105,7 +114,6 @@ void ElogGui::populateUi() {
       auto cb = new QComboBox;
       ui->twAtt->setCellWidget(i, 1, cb);
       foreach (const auto &o, att.options) {
-        qDebug() << "item " << o;
         cb->addItem(o);
       }
     } else {
@@ -117,23 +125,20 @@ void ElogGui::populateUi() {
       auto widget = ui->twAtt->cellWidget(i, 1);
       if (item != nullptr) {
         item->setData(Qt::DisplayRole, mSettings.value(att.name));
+        i++;
         continue;
       } else if (widget == nullptr) {
+        i++;
         continue;
       }
       auto cb = qobject_cast<QComboBox *>(widget);
       if (cb == nullptr) {
+        i++;
         continue;
       }
       cb->setCurrentText(mSettings.value(att.name).toString());
     }
     i++;
-
-    auto pass = mSettings.value("pass").toString();
-    auto user = mSettings.value("user").toString();
-
-    mElog.setPass(pass);
-    mElog.setUser(user);
   }
 }
 
@@ -148,12 +153,6 @@ void ElogGui::elogSetup(const eudaq::ConfigurationSPC &ini) {
   auto req = parseElogCfgLine(reqAtt);
 
   auto keys = ini->Keylist();
-
-  QStringList l;
-  for (const auto &k : keys) {
-    qDebug() << k.c_str() << " ";
-    l << QString(k.c_str());
-  }
 
   mEventCntConn = ini->Get("event_cnt_conn", "").c_str();
 
@@ -206,9 +205,13 @@ void ElogGui::elogSetup(const eudaq::ConfigurationSPC &ini) {
     //             << " req? " << attribute.required;
   }
   mElog.setElogProgramPath(ini->Get("elog_installation", "elog").c_str());
-  mElog.setHost(ini->Get("elog_host", "localhost").c_str());
+  auto host = QString(ini->Get("elog_host", "localhost").c_str());
+  mElog.setHost(host);
   mElog.setPort(ini->Get("elog_port", 8080));
-  mElog.setLogbook(ini->Get("elog_logbook", "").c_str());
+  auto logbook = QString(ini->Get("elog_logbook", "").c_str());
+  mElog.setLogbook(logbook);
+
+  ui->lLogbook->setText(host + " : " + logbook);
 }
 
 QStringList ElogGui::parseElogCfgLine(const std::string &key) {
