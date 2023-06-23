@@ -2,7 +2,7 @@
 #include "ui_eloggui.h"
 
 #include <QApplication>
-#include <QComboBox>
+
 #include <QDebug>
 #include <QFile>
 #include <QRegularExpression>
@@ -113,7 +113,7 @@ void ElogGui::populateUi() {
     ui->twAtt->setRowCount(i + 1);
     ui->twAtt->setItem(i, 0, item);
     if (!att.options.isEmpty()) {
-      auto cb = new QComboBox;
+      auto cb = new NonScrollingCombobox;
       ui->twAtt->setCellWidget(i, 1, cb);
       foreach (const auto &o, att.options) {
         cb->addItem(o);
@@ -133,7 +133,7 @@ void ElogGui::populateUi() {
         i++;
         continue;
       }
-      auto cb = qobject_cast<QComboBox *>(widget);
+      auto cb = qobject_cast<NonScrollingCombobox *>(widget);
       if (cb == nullptr) {
         i++;
         continue;
@@ -244,7 +244,7 @@ QList<ElogGui::SetAtt> ElogGui::attributesSet() {
       att.second = valItem->data(Qt::DisplayRole).toString();
     }
     auto w = ui->twAtt->cellWidget(i, 1);
-    auto cb = qobject_cast<QComboBox *>(w);
+    auto cb = qobject_cast<NonScrollingCombobox *>(w);
     if (cb != nullptr) {
       att.second = cb->currentText();
     }

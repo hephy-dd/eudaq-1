@@ -9,6 +9,8 @@
 #include <QMap>
 #include <QSettings>
 #include <QWidget>
+#include <QComboBox>
+#include <QWheelEvent>
 
 namespace Ui {
 class ElogGui;
@@ -16,6 +18,25 @@ class ElogGui;
 
 Q_DECLARE_METATYPE(
     eudaq::ConfigurationSPC) // neded for signal and slots machinery
+
+class NonScrollingCombobox : public QComboBox {
+
+  Q_OBJECT
+
+public:
+  NonScrollingCombobox(QWidget *parent = 0) : QComboBox(parent) {
+    setFocusPolicy(Qt::StrongFocus);
+  }
+
+protected:
+  virtual void wheelEvent(QWheelEvent *event) {
+    if (!hasFocus()) {
+      event->ignore();
+    } else {
+      QComboBox::wheelEvent(event);
+    }
+  }
+};
 
 class ElogGui : public QWidget {
   Q_OBJECT
