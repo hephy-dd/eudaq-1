@@ -34,6 +34,8 @@ ElogGui::ElogGui(const std::string name, const std::string &runcontrol,
   mSettings.beginGroup("ElogProducer:" + QString(name.c_str()));
 
   setWindowTitle(name.c_str());
+
+  ui->twAtt->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 }
 
 ElogGui::~ElogGui() { delete ui; }
