@@ -20,11 +20,8 @@ ElogGui::ElogGui(const std::string name, const std::string &runcontrol,
   connect(ui->lePass, &QLineEdit::textChanged, &mElog, &Elog::setPass);
   connect(ui->leUser, &QLineEdit::textChanged, &mElog, &Elog::setUser);
 
-  //  qRegisterMetaType<eudaq::ConnectionSPC>();
-  qDebug() << "HIIIIIIIIIIIIIIIIIIII"
-           << qRegisterMetaType<eudaq::ConfigurationSPC>(
-                  "eudaq::ConfigurationSPC")
-           << "\n";
+  qRegisterMetaType<eudaq::ConfigurationSPC>(
+      "eudaq::ConfigurationSPC"); // neded for signal and slots machinery
 
   connect(&mProxy, &Producer2GUIProxy::initialize, this,
           &ElogGui::DoInitialise);
@@ -42,6 +39,7 @@ ElogGui::~ElogGui() { delete ui; }
 std::string ElogGui::Connect() { return mProxy.Connect(); }
 
 void ElogGui::DoInitialise(const eudaq::ConfigurationSPC &ini) {
+  ini->Print();
   elogSetup(ini);
   populateUi();
 }
@@ -96,9 +94,10 @@ void ElogGui::submit(bool autoSubmit) {
 }
 
 void ElogGui::populateUi() {
-  qDebug() << "1";
   int i = 0;
   foreach (const auto &att, mAttributes) {
+
+    qDebug() << "placing " << att.name;
     auto item = new QTableWidgetItem(att.name);
     ui->twAtt->setRowCount(i + 1);
     ui->twAtt->setItem(i, 0, item);
@@ -106,17 +105,16 @@ void ElogGui::populateUi() {
       auto cb = new QComboBox;
       ui->twAtt->setCellWidget(i, 1, cb);
       foreach (const auto &o, att.options) {
+        qDebug() << "item " << o;
         cb->addItem(o);
       }
     } else {
       ui->twAtt->setItem(i, 1, new QTableWidgetItem());
     }
-    qDebug() << "2";
     // restore old settings if there are some in cache matching our config
     if (mSettings.allKeys().contains(att.name)) {
       auto item = ui->twAtt->item(i, 1);
       auto widget = ui->twAtt->cellWidget(i, 1);
-      i++;
       if (item != nullptr) {
         item->setData(Qt::DisplayRole, mSettings.value(att.name));
         continue;
@@ -129,20 +127,19 @@ void ElogGui::populateUi() {
       }
       cb->setCurrentText(mSettings.value(att.name).toString());
     }
+    i++;
 
     auto pass = mSettings.value("pass").toString();
     auto user = mSettings.value("user").toString();
 
     mElog.setPass(pass);
     mElog.setUser(user);
-    qDebug() << "3";
   }
 }
 
 void ElogGui::elogSetup(const eudaq::ConfigurationSPC &ini) {
   auto attributes = ini->Get("Attributes", "");
   auto reqAtt = ini->Get("Required Attributes", "");
-  qDebug() << "1";
 
   ui->twAtt->setRowCount(0);
   mAttributes.clear();
@@ -151,6 +148,12 @@ void ElogGui::elogSetup(const eudaq::ConfigurationSPC &ini) {
   auto req = parseElogCfgLine(reqAtt);
 
   auto keys = ini->Keylist();
+
+  QStringList l;
+  for (const auto &k : keys) {
+    qDebug() << k.c_str() << " ";
+    l << QString(k.c_str());
+  }
 
   mEventCntConn = ini->Get("event_cnt_conn", "").c_str();
 
@@ -174,7 +177,6 @@ void ElogGui::elogSetup(const eudaq::ConfigurationSPC &ini) {
    * the options "Routine", "Software Installation",... (you get it ;) )
    */
 
-  qDebug() << "2";
   QRegularExpression optionRegex(R"(Options (.+))");
   QMap<QString, QStringList> options;
   for (const auto &k : keys) {
@@ -203,7 +205,6 @@ void ElogGui::elogSetup(const eudaq::ConfigurationSPC &ini) {
     //    attribute.options
     //             << " req? " << attribute.required;
   }
-  qDebug() << "3";
   mElog.setElogProgramPath(ini->Get("elog_installation", "elog").c_str());
   mElog.setHost(ini->Get("elog_host", "localhost").c_str());
   mElog.setPort(ini->Get("elog_port", 8080));
