@@ -4,13 +4,13 @@
 #include "elog.h"
 #include "producer2guiproxy.h"
 
+#include <QComboBox>
 #include <QDateTime>
 #include <QMainWindow>
 #include <QMap>
 #include <QSettings>
-#include <QWidget>
-#include <QComboBox>
 #include <QWheelEvent>
+#include <QWidget>
 
 namespace Ui {
 class ElogGui;
@@ -19,6 +19,12 @@ class ElogGui;
 Q_DECLARE_METATYPE(
     eudaq::ConfigurationSPC) // neded for signal and slots machinery
 
+/**
+ * @brief The NonScrollingCombobox class
+ * only here to disable the scrolling of the combobox items when a mousewheel is
+ * scrolling on it this can be annoying when scrolliing through the table and
+ * one accidentially changes values thereby
+ */
 class NonScrollingCombobox : public QComboBox {
 
   Q_OBJECT
@@ -33,6 +39,10 @@ protected:
     if (!hasFocus()) {
       event->ignore();
     } else {
+      /*
+       * when we have strong focus, aka user opened the combobox by clicking on
+       * it earlier, the scrolling is enabled, otherwise ignored
+       */
       QComboBox::wheelEvent(event);
     }
   }
