@@ -1,5 +1,5 @@
 #include "eloggui.h"
-#include "ui_elogproducer.h"
+#include "ui_eloggui.h"
 
 #include <QApplication>
 #include <QComboBox>
@@ -11,7 +11,7 @@
 
 ElogGui::ElogGui(const std::string name, const std::string &runcontrol,
                  QWidget *parent)
-    : QWidget(parent), ui(new Ui::ElogProducer),
+    : QWidget(parent), ui(new Ui::ElogGui),
       mSettings(QSettings("EUDAQ collaboration", "EUDAQ")),
       mProxy(name, runcontrol, this) {
   ui->setupUi(this);
@@ -19,6 +19,12 @@ ElogGui::ElogGui(const std::string name, const std::string &runcontrol,
   connect(ui->pbSubmit, &QPushButton::clicked, this, &ElogGui::submit);
   connect(ui->lePass, &QLineEdit::textChanged, &mElog, &Elog::setPass);
   connect(ui->leUser, &QLineEdit::textChanged, &mElog, &Elog::setUser);
+
+  //  qRegisterMetaType<eudaq::ConnectionSPC>();
+  qDebug() << "HIIIIIIIIIIIIIIIIIIII"
+           << qRegisterMetaType<eudaq::ConfigurationSPC>(
+                  "eudaq::ConfigurationSPC")
+           << "\n";
 
   connect(&mProxy, &Producer2GUIProxy::initialize, this,
           &ElogGui::DoInitialise);

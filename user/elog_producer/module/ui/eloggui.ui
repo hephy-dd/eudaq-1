@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>ElogProducer</class>
+ <class>ElogGui</class>
  <widget class="QWidget" name="ElogGui">
   <property name="geometry">
    <rect>

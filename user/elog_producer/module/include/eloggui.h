@@ -11,12 +11,14 @@
 #include <QMainWindow>
 
 namespace Ui {
-class ElogProducer;
+class ElogGui;
 }
+
+Q_DECLARE_METATYPE(eudaq::ConfigurationSPC)
 
 class ElogGui : public QWidget
 {
-    Q_OBJECT
+    Q_OBJECT    
 
 public:
     explicit ElogGui(const std::string name, const std::string &runcontrol = "", QWidget *parent = nullptr);
@@ -50,7 +52,7 @@ private:
     QList<SetAtt> attributesSet();
     bool saveCurrentElogSetup();
 
-    Ui::ElogProducer *ui;
+    Ui::ElogGui *ui;
     AttList mAttributes;
     Elog mElog;
     QDateTime mStartTime, mStopTime;
