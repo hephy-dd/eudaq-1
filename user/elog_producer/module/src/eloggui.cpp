@@ -165,7 +165,8 @@ void ElogGui::elogSetup(const eudaq::ConfigurationSPC &ini) {
   mElog.setAttRunNmb(runNmbAtt.c_str());
   mElog.setAttRunDur(runDurAtt.c_str());
   QStringList specialAtt;
-  specialAtt << mElog.attRunNmb() << mElog.attStartT() << mElog.attStopT();
+  specialAtt << mElog.attRunNmb() << mElog.attStartT() << mElog.attStopT()
+             << mElog.attRunDur();
 
   /* look for specified options for the attributes
    * each option line looks something like:
