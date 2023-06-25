@@ -3,6 +3,7 @@
 
 #include <QApplication>
 
+#include <QColor>
 #include <QDebug>
 #include <QFile>
 #include <QRegularExpression>
@@ -45,6 +46,17 @@ std::string ElogGui::Connect() { return mProxy.Connect(); }
 void ElogGui::DoInitialise(const eudaq::ConfigurationSPC &ini) {
   elogSetup(ini);
   populateUi();
+
+  auto color = palette().color(QPalette::Window);
+  QString colorStr = ini->Get<std::string>("color", "").c_str();
+  if (!colorStr.isEmpty()) {
+    color = QColor(colorStr);
+  }
+
+  QPalette pal;
+  pal.setColor(QPalette::Window, color);
+  setAutoFillBackground(true);
+  setPalette(pal);
 
   auto pass = mSettings.value("pass").toString();
   auto user = mSettings.value("user").toString();
