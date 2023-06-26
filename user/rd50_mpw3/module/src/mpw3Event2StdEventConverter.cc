@@ -20,6 +20,16 @@ auto dummy0 = eudaq::Factory<eudaq::StdEventConverter>::Register<
 bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
                                            eudaq::StdEventSP d2,
                                            eudaq::ConfigSPC conf) const {
+
+  enum class TimestampMode { Base, Piggy };
+
+  TimestampMode tsMode = TimestampMode::Base;
+  auto tag = d1->GetTag("syncMode");
+  if (tag == "1") {
+    tsMode = TimestampMode::Base;
+  } else if (tag == "2") {
+    tsMode = TimestampMode::Piggy;
+  }
   double t0 = -1.0;
   bool filterZeroWords = true;
   if (conf != nullptr) {
@@ -77,12 +87,21 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
 
       DefsMpw3::HitInfo hi(word);
       if (hi.sof) {
+        if ((tsMode == TimestampMode::Base && hi.piggy) ||
+            (tsMode == TimestampMode::Piggy && !hi.piggy)) {
+          continue;
+        }
         sofWord = hi.initialWord;
         sofCnt++;
         insideFrame = true;
         continue;
       }
       if (hi.eof) {
+        if ((tsMode == TimestampMode::Base && hi.piggy) ||
+            (tsMode == TimestampMode::Piggy && !hi.piggy)) {
+          continue;
+        }
+
         eofWord = hi.initialWord;
         eofCnt++;
         if (!insideFrame) {
@@ -95,8 +114,10 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
         insideFrame = false;
         auto sofOvflw = DefsMpw3::frameOvflw(sofWord, eofWord, false);
         auto eofOvflw = DefsMpw3::frameOvflw(sofWord, eofWord, true);
+
         minSofOvflw = minSofOvflw > sofOvflw ? sofOvflw : minSofOvflw;
         maxEofOvflw = maxEofOvflw < eofOvflw ? eofOvflw : maxEofOvflw;
+        eofCnt++;
         continue;
       }
       if (hi.triggerNmb > 0) {
@@ -123,8 +144,8 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
     if (sofCnt > 0 && eofCnt > 0) {
       uint64_t timeBegin =
           (minSofOvflw * DefsMpw3::dTPerOvflw) * DefsMpw3::lsbTime;
-      uint64_t timeEnd =
-          (maxEofOvflw * DefsMpw3::dTPerOvflw) * DefsMpw3::lsbTime;
+      uint64_t timeEnd = timeBegin;
+      //(maxEofOvflw * DefsMpw3::dTPerOvflw) * DefsMpw3::lsbTime;
 
       if (t0 < 0.0) {
         foundT0 = true;

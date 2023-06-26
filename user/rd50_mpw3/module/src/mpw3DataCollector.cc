@@ -116,6 +116,7 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
   SVD::XLNX_CTRL::Event_t frame;
   uint32_t nEuEvent = 0;
   auto euEvent = eudaq::Event::MakeShared("RD50_Mpw3Event");
+  euEvent->SetTag("syncMode", int(mSyncMode));
   uint64_t triggerOvflw = 0, oldTrgN = 0;
 
   while (mEventBuilderRunning->load(std::memory_order_acquire)) {
