@@ -100,7 +100,9 @@ bool inline isSOF(word_t word) {
 bool inline isEOF(word_t word) {
   return word >> 24 == 0xE0;
 } // is given word End Of Frame?
-bool inline isTrigger(word_t word) { return word >> 16 == 0xFFFF; }
+bool inline isTrigger(word_t word) {
+  return (word >> 16 & 0xFF7F) == 0xFF7F;
+} // works for both trigger from Piggy and Base FIFO
 
 static inline PixelIndex dColIdx2Pix(size_t dcol, size_t pix) {
   /*
@@ -184,21 +186,26 @@ struct HitInfo {
         ss << "iniWord = " << std::hex << initialWord << std::dec << " SOF ";
         ss << "ovflwCnt = " << OvFlwCnt;
         if (piggy) {
-            ss << "   Piggy";
+          ss << "   Piggy";
         } else {
-            ss << "   Base";
+          ss << "   Base";
         }
       } else if (eof) {
         ss << "iniWord = " << std::hex << initialWord << std::dec << " EOF ";
         ss << "ovflwCnt = " << OvFlwCnt;
         if (piggy) {
-            ss << "   Piggy";
+          ss << "   Piggy";
         } else {
-            ss << "   Base";
+          ss << "   Base";
         }
       } else {
         ss << "iniWord = " << std::hex << initialWord << std::dec
            << " triggerNmb = " << triggerNmb;
+        if (piggy) {
+          ss << "   Piggy";
+        } else {
+          ss << "   Base";
+        }
       }
     }
     return ss.str();

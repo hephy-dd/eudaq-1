@@ -15,7 +15,7 @@ namespace XLNX_CTRL {
 
 namespace UPDDetails {
 
-enum class SyncMode { Timestamp, TriggerNumber };
+enum class SyncMode { Timestamp, TriggerNumberBase, TriggerNumberPiggy };
 
 static constexpr auto PayloadBufferSize = 1024;
 using Payload_t = std::vector<Defs::VMEData_t>;
@@ -134,8 +134,12 @@ private:
     return (rWord >> 24) == 0xAF;
   }
 
-  static inline auto IsTriggerHeader(const Defs::VMEData_t &rWord) noexcept {
+  static inline auto IsTriggerHeader(const Defs::VMEData_t &rWord, const bool piggy) noexcept {
+      if (piggy){
       return (rWord >> 16) == 0xFFFF;
+      } else {
+      return (rWord >> 16) == 0xFF7F;
+      }
   }
 
   static inline auto IsTrailer(const Defs::VMEData_t &rWord) noexcept {

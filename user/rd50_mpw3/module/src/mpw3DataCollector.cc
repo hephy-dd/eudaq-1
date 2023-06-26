@@ -37,9 +37,22 @@ void Mpw3FastDataCollector::DoConfigure() {
     mBackEndIDs.clear();
     mBackEndIDs.push_back(xlnxBoardId);
     mXlnxIp = conf->Get("XILINX_IP", "192.168.201.1");
-    mSyncMode = conf->Get("SYNC_MODE", 0) == 0
-                    ? SVD::XLNX_CTRL::UPDDetails::SyncMode::Timestamp
-                    : SVD::XLNX_CTRL::UPDDetails::SyncMode::TriggerNumber;
+    auto syncMode = conf->Get("SYNC_MODE", 0);
+
+    switch (syncMode) {
+    case 0:
+      mSyncMode = SVD::XLNX_CTRL::UPDDetails::SyncMode::Timestamp;
+      break;
+    case 1:
+      mSyncMode = SVD::XLNX_CTRL::UPDDetails::SyncMode::TriggerNumberBase;
+      break;
+    case 2:
+      mSyncMode = SVD::XLNX_CTRL::UPDDetails::SyncMode::TriggerNumberPiggy;
+      break;
+    default:
+      EUDAQ_ERROR("invalid sync mode: " + std::to_string(syncMode) +
+                  " available: 0 - 2");
+    }
   }
 }
 

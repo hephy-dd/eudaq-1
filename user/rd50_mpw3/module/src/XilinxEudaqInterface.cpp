@@ -216,7 +216,8 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
           }
         }
       }
-    } else if (mSyncMode == SyncMode::TriggerNumber) {
+    } else if (mSyncMode == SyncMode::TriggerNumberBase ||
+               mSyncMode == SyncMode::TriggerNumberPiggy) {
       /*
        * in this mode we don't split on SOF / EOF but on trigger words
        * these are indicated by a 16 bit header of 0xffff
@@ -231,15 +232,24 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
        */
 
       // if we still have data buffered from the last frame
+      auto trgFromPiggy =
+          mSyncMode == SyncMode::TriggerNumberPiggy ? true : false;
 
-      auto itCurrTrg =
-          std::find_if(frame.begin(), frame.end(), &Unpacker::IsTriggerHeader);
+      auto trgLambda = [trgFromPiggy](Defs::VMEData_t &word) {
+        return Unpacker::IsTriggerHeader(
+            word, trgFromPiggy); // lambda to use within std::find_if methods
+                                 // beneath, without we can't pass additional
+                                 // arguments (the piggy arg) to our method
+      };
+
+      auto itCurrTrg = std::find_if(frame.begin(), frame.end(), trgLambda);
 
       if (!fadc.empty()) { // data left from earlier
         const auto offset = fadc.size();
         fadc.resize(offset + std::distance(frame.begin(), itCurrTrg));
         if (!IsTriggerHeader(
-                frame.front())) { // current frame does not start with trigger
+                frame.front(),
+                trgFromPiggy)) { // current frame does not start with trigger
           std::copy(frame.begin(), itCurrTrg,
                     fadc.begin() +
                         offset); // copy data from current frame to
@@ -247,7 +257,7 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
                                  // be the whole frame, if none found
                                  // std::find_if(..) evaluates to frame.end())
 
-          if (Unpacker::IsTriggerHeader(fadc.front()) &&
+          if (Unpacker::IsTriggerHeader(fadc.front(), trgFromPiggy) &&
               itCurrTrg != frame.end()) {
             /*
              * buffered pack starts with trigger word && we did find a trigger
@@ -300,22 +310,19 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
         continue;
       }
 
-      auto itNextTrg =
-          std::find_if(itCurrTrg + 1, frame.end(), &Unpacker::IsTriggerHeader);
+      auto itNextTrg = std::find_if(itCurrTrg + 1, frame.end(), trgLambda);
 
       // no more incomplete triggerWord enclosed packs left
       // search current frame for all remaining trigger packs
 
       for (; itCurrTrg != frame.end();
-           itCurrTrg = std::find_if(itNextTrg, frame.end(),
-                                    &Unpacker::IsTriggerHeader)) {
-        itNextTrg = std::find_if(itCurrTrg + 1, frame.end(),
-                                 &Unpacker::IsTriggerHeader);
+           itCurrTrg = std::find_if(itNextTrg, frame.end(), trgLambda)) {
+        itNextTrg = std::find_if(itCurrTrg + 1, frame.end(), trgLambda);
 
         fadc.resize(std::distance(itCurrTrg, itNextTrg));
         std::copy(itCurrTrg, itNextTrg, fadc.begin());
 
-        if (Unpacker::IsTriggerHeader(*itNextTrg)) {
+        if (Unpacker::IsTriggerHeader(*itNextTrg, trgFromPiggy)) {
           // is our trigger-word enclosed package closed? if yes push it to next
           // level, otherwise continue to fill it in next loop
           fadc.push_back(fw64BitTsMsb);
