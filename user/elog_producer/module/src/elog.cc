@@ -62,7 +62,12 @@ bool Elog::submitEntry(const QList<QPair<QString, QString>> &attributes,
 
     // attach config file to the log message
     if (!configFile.isEmpty()) {
-      args << "-f" << configFile;
+      if (QFile::exists(configFile)) {
+        args << "-f" << configFile;
+      } else {
+        qWarning() << "config file to attach " << configFile
+                   << "does not exist";
+      }
     }
   }
 
