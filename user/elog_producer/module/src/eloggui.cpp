@@ -92,7 +92,7 @@ void ElogGui::DoTerminate() {
   close();
 }
 
-void ElogGui::submit(bool autoSubmit) {
+bool ElogGui::submit(bool autoSubmit) {
   auto msg = ui->teMessage->toPlainText();
   if (autoSubmit) {
     msg = QString("automatic log for run %1").arg(mCurrRunN);
@@ -110,11 +110,16 @@ void ElogGui::submit(bool autoSubmit) {
           QString("Sent manual log: %1\n")
               .arg(QTime::currentTime().toString("hh:mm:ss")));
     }
+
+    saveCurrentElogSetup();
+
   } else {
     ui->tbLog->insertPlainText(
         QString("Error sending log: %1\n")
             .arg(QTime::currentTime().toString("hh:mm:ss")));
   }
+
+  return succ;
 }
 
 void ElogGui::populateUi() {

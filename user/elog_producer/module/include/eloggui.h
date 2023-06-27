@@ -60,7 +60,7 @@ public:
   std::string Connect();
 
 private slots:
-  void submit(bool autoSubmit = false);
+  bool submit(bool autoSubmit = false);
   void DoInitialise(const eudaq::ConfigurationSPC &ini);
   void DoConfigure(const eudaq::ConfigurationSPC &conf);
   void DoStartRun(int runNmb);
