@@ -3,8 +3,6 @@
 #include "eudaq/FileWriter.hh"
 #include "eudaq/StdEventConverter.hh"
 
-//#define PROCESS_PREPROCESSED
-
 class Mpw3DbgFileWriter : public eudaq::FileWriter {
 public:
   Mpw3DbgFileWriter(const std::string &patt);
@@ -34,8 +32,6 @@ Mpw3DbgFileWriter::Mpw3DbgFileWriter(const std::string &patt) {
 
 void Mpw3DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
 
-#ifndef PROCESS_PREPROCESSED
-
   static int evtCnt = 0;
 
   mOut << "\n\n new event #" << evtCnt++
@@ -57,33 +53,22 @@ void Mpw3DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
     wordCnt++;
     DefsMpw3::HitInfo hi(i);
     mOut << std::hex << i << " " << std::dec << hi.toStr() << "\n";
-
-    if (hi.sof) {
-      sof = hi.OvFlwCnt;
-    }
-    if (hi.eof) {
-      eof = hi.OvFlwCnt;
-      mOut << "combined ovflw SOF = " << DefsMpw3::frameOvflw(sof, eof, false)
-           << " EOF = " << DefsMpw3::frameOvflw(sof, eof, true) << "\n";
-    }
   }
-#else
   auto evstd = eudaq::StandardEvent::MakeShared();
   auto success = eudaq::StdEventConverter::Convert(ev, evstd, nullptr);
   if (evstd == nullptr || !success) {
-    std::cout << "error during event conversion\n";
+    mOut << "\nStdEvent conversion failed";
+    mOut.flush();
+    //    std::cout << "error during event conversion\n";
     return;
   }
-  mOut << "\n"
-       << evstd->GetTimestampBegin() << " => t = " << evstd->GetTimeBegin()
-       << " multiple? " << ev->GetTag("hitInMultipleEvents", false) << " |  ";
-  auto plane = evstd->GetPlane(0);
-  for (int i = 0; i < plane.HitPixels(); i++) {
-    auto col = int(plane.GetX(i));
-    auto row = int(plane.GetY(i));
-    auto tot = int(plane.GetPixel(i));
-    mOut << row << ":" << col << "/" << tot << ", ";
-  }
-#endif
+  mOut << "\nStdEvent: t = " << evstd->GetTimeBegin() * 1e-6 << "us";
+  //  auto plane = evstd->GetPlane(0);
+  //  for (int i = 0; i < plane.HitPixels(); i++) {
+  //    auto col = int(plane.GetX(i));
+  //    auto row = int(plane.GetY(i));
+  //    auto tot = int(plane.GetPixel(i));
+  //    mOut << row << ":" << col << "/" << tot << ", ";
+  //  }
   mOut.flush();
 }
