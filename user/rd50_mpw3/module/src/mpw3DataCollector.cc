@@ -136,6 +136,9 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
         currTrgN = frame.m_EventNr +
                    triggerOvflw * (1 << 16); // update current trigger
       }
+      if (currTrgN != oldTrgN + 1) {
+        EUDAQ_WARN("missed trigger " + std::to_string(oldTrgN + 1) + "\n");
+      }
       oldTrgN = currTrgN;
       euEvent->SetTriggerN(currTrgN);
       for (int i = 0; i < frame.m_Data.size(); i++) {
