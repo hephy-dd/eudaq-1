@@ -63,7 +63,7 @@ bool Elog::submitEntry(const QList<QPair<QString, QString>> &attributes,
     // attach config file to the log message
     foreach (const auto &file, files) {
       if (!file.isEmpty()) {
-        args << "-f" << file;
+        args << "-f" << file.trimmed();
       }
     }
   }

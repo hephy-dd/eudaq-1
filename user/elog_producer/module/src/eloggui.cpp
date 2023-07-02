@@ -89,10 +89,9 @@ void ElogGui::DoStartRun(int runNmb) {
     proc.setProgram(mStartCmd);
     proc.start();
     if (!proc.waitForFinished()) {
-      qWarning() << "start_cmd " << mStartCmd << " timed out / failed "
-                 << proc.exitCode();
+      qWarning() << "start_cmd " << mStartCmd
+                 << " timed out / failed, exitCode = " << proc.exitCode();
     }
-    qDebug() << "returned " << proc.exitCode() << " " << proc.exitStatus();
   }
 }
 
