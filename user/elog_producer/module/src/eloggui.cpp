@@ -22,8 +22,9 @@ ElogGui::ElogGui(const std::string name, const std::string &runcontrol,
   connect(ui->leUser, &QLineEdit::textChanged, &mElog, &Elog::setUser);
 
   qRegisterMetaType<eudaq::ConfigurationSPC>(
-      "eudaq::ConfigurationSPC"); // neded for signal and slots machinery
+      "eudaq::ConfigurationSPC"); // needed for signal and slots machinery
 
+  // connect our slots to the EUDAQ intewrface
   connect(&mProxy, &Producer2GUIProxy::initialize, this,
           &ElogGui::DoInitialise);
   connect(&mProxy, &Producer2GUIProxy::configure, this, &ElogGui::DoConfigure);
