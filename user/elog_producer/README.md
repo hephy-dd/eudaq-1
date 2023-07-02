@@ -1,6 +1,6 @@
 # Elog Producer
 
-GUI implemented as a producer.
+Elog GUI implemented as a producer.  
 The Elog program https://elog.psi.ch/elog/ is used to report entries to an Elog server.
 Logs can be submitted manually as well as automatically on end of a run.
 
