@@ -24,7 +24,7 @@ void Elog::setPort(uint32_t newPort) { mPort = newPort; }
 bool Elog::submitEntry(const QList<QPair<QString, QString>> &attributes,
                        const QString &message, bool autoSubmit, int runNmb,
                        const QDateTime &startTime, const QDateTime &stopTime,
-                       const QString &configFile) {
+                       const QStringList &files) {
   QFile msgFile(tmpFile);
   if (!msgFile.open(QIODevice::WriteOnly)) {
     qWarning("error opening temp file");
@@ -61,12 +61,9 @@ bool Elog::submitEntry(const QList<QPair<QString, QString>> &attributes,
     args << "-a" << QString("%1=%2").arg(mAttRunDur, QString::number(runTimeM));
 
     // attach config file to the log message
-    if (!configFile.isEmpty()) {
-      if (QFile::exists(configFile)) {
-        args << "-f" << configFile;
-      } else {
-        qWarning() << "config file to attach " << configFile
-                   << "does not exist";
+    foreach (const auto &file, files) {
+      if (!file.isEmpty()) {
+        args << "-f" << file;
       }
     }
   }

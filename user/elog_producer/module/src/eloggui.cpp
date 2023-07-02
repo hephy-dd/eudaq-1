@@ -69,13 +69,30 @@ void ElogGui::DoInitialise(const eudaq::ConfigurationSPC &ini) {
 }
 
 void ElogGui::DoConfigure(const eudaq::ConfigurationSPC &conf) {
-  // store path to config file for later attaching it to log
-  mConfigFile = conf->Name().c_str();
+  mStartCmd = conf->Get("start_cmd", "").c_str();
+  mFiles2Log = QString(conf->Get("files2log", "").c_str()).split(',');
 }
 
 void ElogGui::DoStartRun(int runNmb) {
   mStartTime = QDateTime::currentDateTime();
   mCurrRunN = runNmb;
+
+  qDebug() << mStartCmd;
+  /*
+   * execute an additional command (eg a shell script) before starting the run
+   * useful to copy some remote configurationfiles from different computers to
+   * the local one for attaching them to the Elog entry
+   */
+  if (!mStartCmd.isEmpty()) {
+    QProcess proc;
+    proc.setProgram(mStartCmd);
+    proc.start();
+    if (!proc.waitForFinished()) {
+      qWarning() << "start_cmd " << mStartCmd << " timed out / failed "
+                 << proc.exitCode();
+    }
+    qDebug() << "returned " << proc.exitCode() << " " << proc.exitStatus();
+  }
 }
 
 void ElogGui::DoStopRun() {
@@ -99,7 +116,7 @@ bool ElogGui::submit(bool autoSubmit) {
     msg += "\nComment:\n" + ui->teMessage->toPlainText();
   }
   auto succ = mElog.submitEntry(attributesSet(), msg, autoSubmit, mCurrRunN,
-                                mStartTime, mStopTime, mConfigFile);
+                                mStartTime, mStopTime, mFiles2Log);
   if (succ) {
     if (autoSubmit) {
       ui->tbLog->insertPlainText(
@@ -172,8 +189,6 @@ void ElogGui::elogSetup(const eudaq::ConfigurationSPC &ini) {
   auto req = parseElogCfgLine(reqAtt);
 
   auto keys = ini->Keylist();
-
-  mEventCntConn = ini->Get("event_cnt_conn", "").c_str();
 
   auto startTAtt = ini->Get("att_start_time", "Start-Time");
   auto stopTAtt = ini->Get("att_stop_time", "Stop-Time");

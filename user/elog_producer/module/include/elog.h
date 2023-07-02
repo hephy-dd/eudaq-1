@@ -20,7 +20,7 @@ public:
   bool submitEntry(const QList<QPair<QString, QString>> &attributes,
                    const QString &message, bool autoSubmit = false,
                    int runNmb = -1, const QDateTime &startTime = QDateTime(),
-                   const QDateTime &stopTime = QDateTime(), const QString &configFile = QString());
+                   const QDateTime &stopTime = QDateTime(), const QStringList &files = QStringList());
 
   bool reset();
   void debugPrint();
