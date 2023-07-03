@@ -88,8 +88,8 @@ private:
   AttList mAttributes;
   Elog mElog;
   QDateTime mStartTime, mStopTime;
-  QString mConfigFile;
-  QString mEventCntConn;
+  QString mStartCmd;
+  QStringList mFiles2Log;
   QSettings mSettings;
   uint mCurrRunN;
   Producer2GUIProxy mProxy;
