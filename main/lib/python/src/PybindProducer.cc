@@ -26,6 +26,10 @@ public:
     PYBIND11_OVERLOAD(void, /* Return type */
                       eudaq::Producer, DoConfigure);
   }
+  int GetRunNumber() {
+    PYBIND11_OVERLOAD(int, /* Return type */
+                      eudaq::Producer, GetRunNumber);
+  }
   void DoStartRun() override {
     PYBIND11_OVERLOAD(void, /* Return type */
                       eudaq::Producer, DoStartRun);
@@ -62,6 +66,7 @@ void init_pybind_producer(py::module &m) {
       }));
   producer_.def("SetStatusTag", &eudaq::Producer::SetStatusTag);
   producer_.def("SetStatusMsg", &eudaq::Producer::SetStatusMsg);
+  producer_.def("GetRunNumber", &eudaq::Producer::GetRunNumber);
   producer_.def("RunLoop", &eudaq::Producer::RunLoop);
   producer_.def("SendEvent", &eudaq::Producer::SendEvent, "Send an Event",
                 py::arg("ev"));
