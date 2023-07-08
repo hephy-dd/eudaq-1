@@ -135,7 +135,7 @@ private:
      * xxx n Bits to fill up 32 bit word
      * {0/1}xxx is 24 bit in total
      */
-    return (rWord >> 24) == 0xAF;
+    return (rWord >> 23) == (0xAF << 1);
   }
 
   static inline auto IsTriggerHeader(const Defs::VMEData_t &rWord,
@@ -154,7 +154,7 @@ private:
      * xxx n Bits to fill up 32 bit word
      * {0/1}xxx is 24 bit in total
      */
-    return (rWord >> 24) == 0xE0;
+    return (rWord >> 23) == (0xE0 << 1);
   }
 
   inline auto PushFADCFrame(FADCPayload_t &rFADC, int retries = 100) noexcept {
