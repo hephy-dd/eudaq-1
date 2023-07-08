@@ -61,12 +61,12 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
     basePlane.SetSizeZS(DefsMpw3::dimSensorCol, DefsMpw3::dimSensorRow, 0);
     piggyPlane.SetSizeZS(DefsMpw3::dimSensorCol, DefsMpw3::dimSensorRow, 0);
     DefsMpw3::word_t sofWord, eofWord;
-    DefsMpw3::ts_t minSofOvflw = -1, maxEofOvflw = 0;
     int sofCnt = 0, eofCnt = 0, hitCnt = 0;
     double avgTsLe = 0.0, avgTsTe = 0.0;
     int errorCnt = 0;
 
     bool insideFrame = false;
+    DefsMpw3::ts_t frameTs;
 
     for (const auto &word : rawdata) {
       /*
@@ -105,18 +105,14 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
         eofWord = hi.initialWord;
         eofCnt++;
         if (!insideFrame) {
-          EUDAQ_WARN("EOF before SOF");
+          //          EUDAQ_WARN("EOF before SOF");
           // we only except full frames
           // incomplete frames discarded
           errorCnt++;
           //          continue;
         }
         insideFrame = false;
-        auto sofOvflw = DefsMpw3::frameOvflw(sofWord, eofWord, false);
-        auto eofOvflw = DefsMpw3::frameOvflw(sofWord, eofWord, true);
-
-        minSofOvflw = minSofOvflw > sofOvflw ? sofOvflw : minSofOvflw;
-        maxEofOvflw = maxEofOvflw < eofOvflw ? eofOvflw : maxEofOvflw;
+        frameTs = DefsMpw3::frameTimestamp(sofWord, eofWord);
         eofCnt++;
         continue;
       }
@@ -142,8 +138,8 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
      * current frame
      */
     if (sofCnt > 0 && eofCnt > 0) {
-      uint64_t timeBegin =
-          (minSofOvflw * DefsMpw3::dTPerOvflw) * DefsMpw3::lsbTime;
+      std::cout << "fTs " << frameTs << "\n";
+      uint64_t timeBegin = frameTs * DefsMpw3::lsbTime;
       uint64_t timeEnd = timeBegin;
       //(maxEofOvflw * DefsMpw3::dTPerOvflw) * DefsMpw3::lsbTime;
 
@@ -162,6 +158,8 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
       d2->SetTriggerN(d1->GetTriggerN());
     } else {
       EUDAQ_WARN("Not possible to generate timestamp");
+      std::cout << "sofs " << sofCnt << " eofs " << eofCnt << "\n";
+
       return false;
     }
 

@@ -50,20 +50,20 @@ static constexpr ts_t lsbToleranceOvflwDcol =
 
 word_t inline extractDcol(word_t word) { // EOC_ADDR
   return ((word >> 24) & 0x1F);
-};
+}
 word_t inline extractPix(word_t word) { // PIX_ADDR
   return ((word >> 16) & 0x7F);
-};
+}
 word_t inline extractTsTe(word_t word) { // TS_TE
   return (word >> 8) & 0xFF;
-};
-word_t inline extractTsLe(word_t word) { return word & 0xFF; }; // TS_LE
+}
+word_t inline extractTsLe(word_t word) { return word & 0xFF; } // TS_LE
 word_t inline extractPiggy(word_t word) {
   return (word >> 23) & 0x01;
-}; // piggy or base
+} // piggy or base
 word_t inline extractOverFlowCnt(word_t word) { return word & 0x7FFFFF; }
 word_t inline extractTriggerNmb(word_t word) { return word & 0xFFFF; }
-auto inline frameOvflw(ts_t sof, ts_t eof, bool generateEOF) {
+auto inline frameTimestamp(ts_t sof, ts_t eof) {
 
   /*
    * To allow an overflowCounter of 38bit width it is split into SOF and EOF
@@ -84,14 +84,9 @@ auto inline frameOvflw(ts_t sof, ts_t eof, bool generateEOF) {
    */
   sof &= 0x7FFFFF; // upper 9 bit distinguish only SOF / EOF
   eof &= 0x7FFFFF;
-  DefsMpw3::ts_t frameOvwfl = sof;
-  frameOvwfl |= ((eof & 0x3FFF00) >> 8) << 23;
-  if (generateEOF) {
-    // for the EOF ovflw counter we need to use the LSBs from the EOF word
-    frameOvwfl = (frameOvwfl >> 8) << 8; // clear LSBs from SOF
-    frameOvwfl |= eof & 0xff;            // set LSBs from EOF
-  }
-  return frameOvwfl;
+  DefsMpw3::ts_t frameTs = eof;
+  frameTs |= (sof << 23);
+  return frameTs;
 }
 
 bool inline isSOF(word_t word) {
