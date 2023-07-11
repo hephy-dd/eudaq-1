@@ -7,14 +7,15 @@ public:
   bool Converting(eudaq::EventSPC d1, eudaq::StdEventSP d2,
                   eudaq::ConfigSPC conf) const override;
   static const uint32_t m_id_factory = eudaq::cstr2hash("RD50_Mpw3Event");
-  static bool foundT0;
+  static bool foundT0Base, foundT0Piggy;
 };
 
-bool Mpw3Raw2StdEventConverter::foundT0 = false;
+bool Mpw3Raw2StdEventConverter::foundT0Base = false;
+bool Mpw3Raw2StdEventConverter::foundT0Piggy = false;
 
 namespace {
-auto dummy0 = eudaq::Factory<eudaq::StdEventConverter>::Register<
-    Mpw3Raw2StdEventConverter>(Mpw3Raw2StdEventConverter::m_id_factory);
+  auto dummy0 = eudaq::Factory<eudaq::StdEventConverter>::Register<
+      Mpw3Raw2StdEventConverter>(Mpw3Raw2StdEventConverter::m_id_factory);
 }
 
 bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
@@ -27,15 +28,21 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
   auto tag = d1->GetTag("syncMode");
   if (tag == "1") {
     tsMode = TimestampMode::Base;
+
   } else if (tag == "2") {
     tsMode = TimestampMode::Piggy;
   }
+
   double t0 = -1.0;
   bool filterZeroWords = true;
+  bool weArePiggy = false;
   if (conf != nullptr) {
     t0 = conf->Get("t0_skip_time", -1.0);
     filterZeroWords = conf->Get("filter_zeros", true);
+
+    weArePiggy = conf->Get("is_piggy", false);
   }
+
   auto ev = std::dynamic_pointer_cast<const eudaq::RawEvent>(d1);
 
   for (int i = 0; i < ev->NumBlocks(); i++) {
@@ -138,18 +145,30 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
      * current frame
      */
     if (sofCnt > 0 && eofCnt > 0) {
-      std::cout << "fTs " << frameTs << "\n";
       uint64_t timeBegin = frameTs * DefsMpw3::lsbTime;
       uint64_t timeEnd = timeBegin;
       //(maxEofOvflw * DefsMpw3::dTPerOvflw) * DefsMpw3::lsbTime;
 
+      
       if (t0 < 0.0) {
-        foundT0 = true;
+        if (!weArePiggy) {
+        foundT0Base = true;
+        } else {
+          foundT0Piggy = true;
+        }
       } else if (timeBegin < uint64_t(t0)) {
-        foundT0 = true;
+        if (!weArePiggy) {
+
+        foundT0Base = true;
+        } else {
+          foundT0Piggy = true;
+        }
       }
 
-      if (!foundT0) {
+      if (!foundT0Base && !weArePiggy) {
+        return false;
+      }
+      if (!foundT0Piggy && weArePiggy) {
         return false;
       }
 
@@ -158,7 +177,7 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
       d2->SetTriggerN(d1->GetTriggerN());
     } else {
       EUDAQ_WARN("Not possible to generate timestamp");
-      std::cout << "sofs " << sofCnt << " eofs " << eofCnt << "\n";
+      //std::cout << "sofs " << sofCnt << " eofs " << eofCnt << "\n";
 
       return false;
     }
