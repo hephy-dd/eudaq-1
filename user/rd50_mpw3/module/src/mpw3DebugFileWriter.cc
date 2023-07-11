@@ -40,8 +40,15 @@ void Mpw3DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
        << " triggerNmb = " << ev->GetTriggerN() << "\n\n";
 
   auto block = ev->GetBlock(0);
+
   std::vector<uint32_t> data;
   const auto wordSize = sizeof(uint32_t);
+
+  if (block.size() <= 2 * wordSize) {
+    // no hits in event just trigger word,
+    // actually not usable, but don't fail for debug purposes
+    mOut << "empty event\n\n";
+  }
 
   data.resize(block.size() / wordSize);
 

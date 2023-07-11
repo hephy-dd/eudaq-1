@@ -36,10 +36,11 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
   double t0 = -1.0;
   bool filterZeroWords = true;
   bool weArePiggy = false;
+  int tShift = 0;
   if (conf != nullptr) {
     t0 = conf->Get("t0_skip_time", -1.0);
     filterZeroWords = conf->Get("filter_zeros", true);
-
+    tShift = conf->Get("mpw3_tshift", 0);
     weArePiggy = conf->Get("is_piggy", false);
   }
 
@@ -54,6 +55,7 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
       // no hits in event just trigger word,
       // actually not usable, but don't fail for debug purposes
       EUDAQ_WARN("empty event");
+      return false;
     }
 
     /*
@@ -145,7 +147,7 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
      * current frame
      */
     if (sofCnt > 0 && eofCnt > 0) {
-      uint64_t timeBegin = frameTs * DefsMpw3::lsbTime;
+      uint64_t timeBegin = frameTs * DefsMpw3::lsbTime + tShift * 1e6;
       uint64_t timeEnd = timeBegin;
       //(maxEofOvflw * DefsMpw3::dTPerOvflw) * DefsMpw3::lsbTime;
 
