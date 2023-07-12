@@ -25,13 +25,6 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
   enum class TimestampMode { Base, Piggy };
 
   TimestampMode tsMode = TimestampMode::Base;
-  auto tag = d1->GetTag("syncMode");
-  if (tag == "1") {
-    tsMode = TimestampMode::Base;
-
-  } else if (tag == "2") {
-    tsMode = TimestampMode::Piggy;
-  }
 
   double t0 = -1.0;
   bool filterZeroWords = true;
@@ -95,6 +88,12 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
       }
 
       DefsMpw3::HitInfo hi(word);
+      if (hi.piggy) {
+        tsMode = TimestampMode::Piggy;
+      } else {
+        tsMode = TimestampMode::Base;
+      }
+
       if (hi.sof) {
         if ((tsMode == TimestampMode::Base && hi.piggy) ||
             (tsMode == TimestampMode::Piggy && !hi.piggy)) {
@@ -151,17 +150,16 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
       uint64_t timeEnd = timeBegin;
       //(maxEofOvflw * DefsMpw3::dTPerOvflw) * DefsMpw3::lsbTime;
 
-      
       if (t0 < 0.0) {
         if (!weArePiggy) {
-        foundT0Base = true;
+          foundT0Base = true;
         } else {
           foundT0Piggy = true;
         }
       } else if (timeBegin < uint64_t(t0)) {
         if (!weArePiggy) {
 
-        foundT0Base = true;
+          foundT0Base = true;
         } else {
           foundT0Piggy = true;
         }
@@ -179,14 +177,18 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
       d2->SetTriggerN(d1->GetTriggerN());
     } else {
       EUDAQ_WARN("Not possible to generate timestamp");
-      //std::cout << "sofs " << sofCnt << " eofs " << eofCnt << "\n";
+      // std::cout << "sofs " << sofCnt << " eofs " << eofCnt << "\n";
 
       return false;
     }
 
     d2->SetDescription("RD50_MPW3");
-    d2->AddPlane(basePlane);
-    d2->AddPlane(piggyPlane);
+    if (basePlane.NumFrames() > 0) {
+      d2->AddPlane(basePlane);
+    }
+    if (piggyPlane.NumFrames() > 0) {
+      d2->AddPlane(piggyPlane);
+    }
   }
   return true;
 }
