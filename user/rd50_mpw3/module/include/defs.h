@@ -84,8 +84,8 @@ auto inline frameTimestamp(ts_t sof, ts_t eof) {
    */
   sof &= 0x7FFFFF; // upper 9 bit distinguish only SOF / EOF
   eof &= 0x7FFFFF;
-  DefsMpw3::ts_t frameTs = eof;
-  frameTs |= (sof << 23);
+  DefsMpw3::ts_t frameTs = sof;
+  frameTs |= (eof << 23);
   return frameTs;
 }
 

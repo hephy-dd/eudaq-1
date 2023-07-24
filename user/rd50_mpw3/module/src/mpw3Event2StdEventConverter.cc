@@ -88,11 +88,14 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
       }
 
       DefsMpw3::HitInfo hi(word);
-      if (hi.piggy) {
-        tsMode = TimestampMode::Piggy;
-      } else {
-        tsMode = TimestampMode::Base;
-      }
+
+      // std::cout << std::hex << hi.initialWord << "\n";
+
+      // if (hi.piggy) {
+      //   tsMode = TimestampMode::Piggy;
+      // } else {
+      //   tsMode = TimestampMode::Base;
+      // }
 
       if (hi.sof) {
         if ((tsMode == TimestampMode::Base && hi.piggy) ||
@@ -122,6 +125,7 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
         insideFrame = false;
         frameTs = DefsMpw3::frameTimestamp(sofWord, eofWord);
         eofCnt++;
+        // std::cout << "eof "<< std::hex << hi.initialWord <<std::dec << "\n";
         continue;
       }
       if (hi.triggerNmb > 0) {
@@ -146,6 +150,7 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
      * current frame
      */
     if (sofCnt > 0 && eofCnt > 0) {
+      // std::cout << "sof =  " << sofWord << " eof = " << eofWord << "\n";
       uint64_t timeBegin = frameTs * DefsMpw3::lsbTime + tShift * 1e6;
       uint64_t timeEnd = timeBegin;
       //(maxEofOvflw * DefsMpw3::dTPerOvflw) * DefsMpw3::lsbTime;
