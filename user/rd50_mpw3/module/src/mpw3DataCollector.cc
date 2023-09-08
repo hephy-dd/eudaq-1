@@ -37,22 +37,6 @@ void Mpw3FastDataCollector::DoConfigure() {
     mBackEndIDs.clear();
     mBackEndIDs.push_back(xlnxBoardId);
     mXlnxIp = conf->Get("XILINX_IP", "192.168.201.1");
-    auto syncMode = conf->Get("SYNC_MODE", 0);
-
-    switch (syncMode) {
-    case 0:
-      mSyncMode = SVD::XLNX_CTRL::UPDDetails::SyncMode::Timestamp;
-      break;
-    case 1:
-      mSyncMode = SVD::XLNX_CTRL::UPDDetails::SyncMode::TriggerNumberBase;
-      break;
-    case 2:
-      mSyncMode = SVD::XLNX_CTRL::UPDDetails::SyncMode::TriggerNumberPiggy;
-      break;
-    default:
-      EUDAQ_ERROR("invalid sync mode: " + std::to_string(syncMode) +
-                  " available: 0 - 2");
-    }
   }
 }
 
@@ -70,7 +54,6 @@ void Mpw3FastDataCollector::DoStartRun() {
 
   mEventMerger = std::make_unique<SVD::XLNX_CTRL::FADCGbEMerger>(
       mBackEndIDs, eudaq::GetLogger());
-  mEventMerger->setSyncMode(mSyncMode);
 
   mEventBuilderRunning = std::make_unique<std::atomic<bool>>(true);
   mEventBuilderThread = std::make_unique<std::thread>(
@@ -116,7 +99,6 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
   SVD::XLNX_CTRL::Event_t frame;
   uint32_t nEuEvent = 0;
   auto euEvent = eudaq::Event::MakeShared("RD50_Mpw3Event");
-  euEvent->SetTag("syncMode", int(mSyncMode));
   uint64_t triggerOvflw = 0, oldTrgN = 0;
 
   while (mEventBuilderRunning->load(std::memory_order_acquire)) {
@@ -136,9 +118,10 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
         currTrgN = frame.m_EventNr +
                    triggerOvflw * (1 << 16); // update current trigger
       }
-//      if (currTrgN != oldTrgN + 1) {
-//        EUDAQ_WARN("missed trigger " + std::to_string(oldTrgN + 1) + "\n");
-//      }
+      //      if (currTrgN != oldTrgN + 1) {
+      //        EUDAQ_WARN("missed trigger " + std::to_string(oldTrgN + 1) +
+      //        "\n");
+      //      }
       oldTrgN = currTrgN;
       euEvent->SetTriggerN(currTrgN);
       for (int i = 0; i < frame.m_Data.size(); i++) {

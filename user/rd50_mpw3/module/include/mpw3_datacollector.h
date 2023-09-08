@@ -39,6 +39,5 @@ private:
   std::string mXlnxIp;
   eudaq::FileWriterSP mWriter;
   std::chrono::high_resolution_clock::time_point mStartTime;
-  SVD::XLNX_CTRL::UPDDetails::SyncMode mSyncMode;
 };
 #endif // MPW3_DATACOLLECTOR_H

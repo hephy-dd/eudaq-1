@@ -15,12 +15,6 @@ namespace XLNX_CTRL {
 
 namespace UPDDetails {
 
-enum class SyncMode {
-  Timestamp = 0,
-  TriggerNumberBase = 1,
-  TriggerNumberPiggy = 2
-};
-
 static constexpr auto PayloadBufferSize = 1024;
 using Payload_t = std::vector<Defs::VMEData_t>;
 using PayloadBuffer_t = Tools::RingBuffer_t<Payload_t, PayloadBufferSize>;
@@ -111,12 +105,6 @@ public:
 
   inline auto IsEmpty() const noexcept { return m_FADCBuffer->IsEmpty(); }
 
-  UPDDetails::SyncMode syncMode() const;
-  void setSyncMode(UPDDetails::SyncMode newSyncMode);
-  static inline auto extractTriggerN(const Defs::VMEData_t &rWord) noexcept {
-    return rWord & 0xFFFF;
-  }
-
 private:
   static constexpr auto m_gName = "UDPUnpacker";
   inline auto NextFrame(PayloadBuffer_t &rBuffer, Payload_t &rFrame,
@@ -136,15 +124,6 @@ private:
      * {0/1}xxx is 24 bit in total
      */
     return (rWord >> 23) == (0xAF << 1);
-  }
-
-  static inline auto IsTriggerHeader(const Defs::VMEData_t &rWord,
-                                     const bool piggy) noexcept {
-    if (piggy) {
-      return (rWord >> 16) == 0xFFFF;
-    } else {
-      return (rWord >> 16) == 0xFF7F;
-    }
   }
 
   static inline auto IsTrailer(const Defs::VMEData_t &rWord) noexcept {
@@ -173,7 +152,6 @@ private:
   std::unique_ptr<std::thread> m_pThread{};
 
   eudaq::LogSender *m_euLogger;
-  UPDDetails::SyncMode mSyncMode;
 };
 
 } // namespace UPDDetails
@@ -196,7 +174,6 @@ public:
   inline auto IsEventMissmatch() const noexcept {
     return m_EventMissMatch.load(std::memory_order_acquire);
   }
-  void setSyncMode(UPDDetails::SyncMode newSyncMode);
 
 private:
   inline auto Exit() noexcept -> void {

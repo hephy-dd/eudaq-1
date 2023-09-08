@@ -114,16 +114,6 @@ Unpacker::~Unpacker() {
     m_pThread->join();
   }
 }
-
-SVD::XLNX_CTRL::UPDDetails::SyncMode
-SVD::XLNX_CTRL::UPDDetails::Unpacker::syncMode() const {
-  return mSyncMode;
-}
-
-void SVD::XLNX_CTRL::UPDDetails::Unpacker::setSyncMode(SyncMode newSyncMode) {
-  mSyncMode = newSyncMode;
-}
-
 void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
   auto frame = Payload_t();
   auto fadc = FADCPayload_t();
@@ -163,181 +153,59 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
     frame.pop_back();
     //    uint64_t fw64BitOvflwFull =
     //        (uint64_t(fw64BitTsMsb) << uint64_t(32)) + uint64_t(fw64BitTsLsb);
-    if (mSyncMode == SyncMode::Timestamp) {
-      auto itBegin = fadc.empty()
-                         ? std::find_if(std::begin(frame), std::end(frame),
-                                        &Unpacker::IsMainHeader)
-                         : std::begin(frame);
+    auto itBegin = fadc.empty()
+                       ? std::find_if(std::begin(frame), std::end(frame),
+                                      &Unpacker::IsMainHeader)
+                       : std::begin(frame);
 
-      if (itBegin != std::end(frame)) {
-        auto itEnd =
+    if (itBegin != std::end(frame)) {
+      auto itEnd =
+          std::find_if(itBegin, std::end(frame) - 1, &Unpacker::IsTrailer);
+
+      const auto offset = fadc.size();
+      const auto isTrailer = Unpacker::IsTrailer(*itEnd);
+      fadc.resize(offset + std::distance(itBegin, itEnd + isTrailer));
+      std::copy(itBegin, itEnd + isTrailer, fadc.begin() + offset);
+
+      if (Unpacker::IsMainHeader(fadc.front()) &&
+          Unpacker::IsTrailer(fadc.back())) {
+        fadc.push_back(fw64BitTsMsb);
+
+        fadc.push_back(fw64BitTsLsb);
+        fadc.push_back(cpuTsMsb);
+        fadc.push_back(cpuTsLsb);
+        while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
+          //                std::this_thread::sleep_for(std::chrono::microseconds(10));
+        }
+        fadc.clear();
+      }
+
+      for (itBegin = std::find_if(itEnd, std::end(frame) - 1,
+                                  &Unpacker::IsMainHeader);
+           itBegin != std::end(frame) - 1;
+           itBegin = std::find_if(itEnd, std::end(frame) - 1,
+                                  &Unpacker::IsMainHeader)) {
+
+        itEnd =
             std::find_if(itBegin, std::end(frame) - 1, &Unpacker::IsTrailer);
-
-        const auto offset = fadc.size();
+        // const auto notSplit = itEnd != std::end(frame);
         const auto isTrailer = Unpacker::IsTrailer(*itEnd);
-        fadc.resize(offset + std::distance(itBegin, itEnd + isTrailer));
-        std::copy(itBegin, itEnd + isTrailer, fadc.begin() + offset);
 
-        if (Unpacker::IsMainHeader(fadc.front()) &&
-            Unpacker::IsTrailer(fadc.back())) {
-          fadc.push_back(fw64BitTsMsb);
-
-          fadc.push_back(fw64BitTsLsb);
-          fadc.push_back(cpuTsMsb);
-          fadc.push_back(cpuTsLsb);
-          while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
-            //                std::this_thread::sleep_for(std::chrono::microseconds(10));
-          }
-          fadc.clear();
-        }
-
-        for (itBegin = std::find_if(itEnd, std::end(frame) - 1,
-                                    &Unpacker::IsMainHeader);
-             itBegin != std::end(frame) - 1;
-             itBegin = std::find_if(itEnd, std::end(frame) - 1,
-                                    &Unpacker::IsMainHeader)) {
-
-          itEnd =
-              std::find_if(itBegin, std::end(frame) - 1, &Unpacker::IsTrailer);
-          // const auto notSplit = itEnd != std::end(frame);
-          const auto isTrailer = Unpacker::IsTrailer(*itEnd);
-
-          fadc.resize(std::distance(itBegin, itEnd) + isTrailer);
-          std::copy(itBegin, itEnd + isTrailer, std::begin(fadc));
-          if (Unpacker::IsTrailer(fadc.back())) {
-            fadc.push_back(fw64BitTsMsb);
-            fadc.push_back(fw64BitTsLsb);
-            fadc.push_back(cpuTsMsb);
-            fadc.push_back(cpuTsLsb);
-            while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
-              //                  std::this_thread::sleep_for(std::chrono::microseconds(10));
-            }
-            fadc.clear();
-          }
-        }
-      }
-    } else if (mSyncMode == SyncMode::TriggerNumberBase ||
-               mSyncMode == SyncMode::TriggerNumberPiggy) {
-      /*
-       * in this mode we don't split on SOF / EOF but on trigger words
-       * these are indicated by a 16 bit header of 0xffff
-       * We search within / over multiple UDP packages for
-       * trigger word split events like (T ... Trigger word, D ... regular data
-       * word)
-       * <-- D D D D T D D D D D D D D D D T D D D D D D D D T D D T D D D D -->
-       * Such a data stream would get split into the following pieces
-       * <-----0----|----------1----------|--------2--------|--3--|-----4------>
-       * Here 0, 1, 2, 3 would get shipped to the next stage as triggered
-       * events, while 4 would still remain here until the next T comes by
-       */
-
-      // if we still have data buffered from the last frame
-      auto trgFromPiggy =
-          mSyncMode == SyncMode::TriggerNumberPiggy ? true : false;
-
-      auto trgLambda = [trgFromPiggy](Defs::VMEData_t &word) {
-        return Unpacker::IsTriggerHeader(
-            word, trgFromPiggy); // lambda to use within std::find_if methods
-                                 // beneath, without we can't pass additional
-                                 // arguments (the piggy arg) to our method
-      };
-
-      auto itCurrTrg = std::find_if(frame.begin(), frame.end(), trgLambda);
-
-      if (!fadc.empty()) { // data left from earlier
-        const auto offset = fadc.size();
-        fadc.resize(offset + std::distance(frame.begin(), itCurrTrg));
-        if (!IsTriggerHeader(
-                frame.front(),
-                trgFromPiggy)) { // current frame does not start with trigger
-          std::copy(frame.begin(), itCurrTrg,
-                    fadc.begin() +
-                        offset); // copy data from current frame to
-                                 // buffer until trigger word in frame (can also
-                                 // be the whole frame, if none found
-                                 // std::find_if(..) evaluates to frame.end())
-
-          if (Unpacker::IsTriggerHeader(fadc.front(), trgFromPiggy) &&
-              itCurrTrg != frame.end()) {
-            /*
-             * buffered pack starts with trigger word && we did find a trigger
-             * word in the new frame => triggered event now is closed, ship to
-             * next thread
-             */
-
-            /* TODO: if trigger in new frame is located at end of vector, this
-             * would cause faulty behavior
-             */
-
-            fadc.push_back(fw64BitTsMsb);
-            fadc.push_back(fw64BitTsLsb);
-            fadc.push_back(cpuTsMsb);
-            fadc.push_back(cpuTsLsb);
-
-            while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
-              // retry until success or somebody wants to stop us
-            }
-            fadc.clear();
-          }
-          // if no trigger in new frame, it gets buffered for next round
-        } else {
-          // the new frame instantly starts with a trigger word => buffered
-          // package now is closed and we ship it immediately
+        fadc.resize(std::distance(itBegin, itEnd) + isTrailer);
+        std::copy(itBegin, itEnd + isTrailer, std::begin(fadc));
+        if (Unpacker::IsTrailer(fadc.back())) {
           fadc.push_back(fw64BitTsMsb);
           fadc.push_back(fw64BitTsLsb);
           fadc.push_back(cpuTsMsb);
           fadc.push_back(cpuTsLsb);
-
-          itCurrTrg = frame.begin();
-
           while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
-            // retry until success or somebody wants to stop us
+            //                  std::this_thread::sleep_for(std::chrono::microseconds(10));
           }
           fadc.clear();
-        }
-      }
-
-      if (itCurrTrg == frame.end()) {
-        // no trigger in current frame, buffer it until the next trigger is
-        // found (somewhere in the future)
-        const auto offset = fadc.size();
-        fadc.resize(offset + std::distance(frame.begin(), frame.end()));
-        std::copy(frame.begin(), frame.end(), fadc.begin() + offset);
-
-        m_euLogger->SendLogMessage(eudaq::LogMessage(
-            "not a single trigger word found in current frame, buffering it",
-            eudaq::LogMessage::LVL_DEBUG));
-        continue;
-      }
-
-      auto itNextTrg = std::find_if(itCurrTrg + 1, frame.end(), trgLambda);
-
-      // no more incomplete triggerWord enclosed packs left
-      // search current frame for all remaining trigger packs
-
-      for (; itCurrTrg != frame.end();
-           itCurrTrg = std::find_if(itNextTrg, frame.end(), trgLambda)) {
-        itNextTrg = std::find_if(itCurrTrg + 1, frame.end(), trgLambda);
-
-        fadc.resize(std::distance(itCurrTrg, itNextTrg));
-        std::copy(itCurrTrg, itNextTrg, fadc.begin());
-
-        if (Unpacker::IsTriggerHeader(*itNextTrg, trgFromPiggy)) {
-          // is our trigger-word enclosed package closed? if yes push it to next
-          // level, otherwise continue to fill it in next loop
-          fadc.push_back(fw64BitTsMsb);
-          fadc.push_back(fw64BitTsLsb);
-          fadc.push_back(cpuTsMsb);
-          fadc.push_back(cpuTsLsb);
-
-          while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
-            // retry until success or somebody wants to stop us
-          }
-          fadc.clear();
-        } else {
         }
       }
     }
+
     if (fadc.size() > 5 * FADCBufferSize) {
       m_euLogger->SendLogMessage(
           eudaq::LogMessage("local buffer exceeds max size => discarding",
@@ -398,8 +266,6 @@ bool FADCGbEMerger::operator()(Event_t &rEvent) noexcept {
     rEvent.m_Data.front().pop_back();
     rEvent.m_recvTsFw |= uint64_t(rEvent.m_Data.front().back()) << 32;
     rEvent.m_Data.front().pop_back();
-    rEvent.m_EventNr =
-        UPDDetails::Unpacker::extractTriggerN(rEvent.m_Data.front().front());
   } else {
     m_euLogger->SendLogMessage(
         eudaq::LogMessage("frame too small for TS extraction in merger: " +
@@ -408,13 +274,6 @@ bool FADCGbEMerger::operator()(Event_t &rEvent) noexcept {
     return false;
   }
   return true;
-}
-
-void SVD::XLNX_CTRL::FADCGbEMerger::setSyncMode(
-    UPDDetails::SyncMode newSyncMode) {
-  for (auto &unpacker : m_Unpackers) {
-    unpacker.setSyncMode(newSyncMode);
-  }
 }
 
 // namespace UPDDetails
