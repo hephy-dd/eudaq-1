@@ -13,7 +13,7 @@
 ElogGui::ElogGui(const std::string name, const std::string &runcontrol,
                  QWidget *parent)
     : QWidget(parent), ui(new Ui::ElogGui),
-      mSettings(QSettings("EUDAQ collaboration", "EUDAQ")),
+      mSettings("EUDAQ collaboration", "EUDAQ"),
       mProxy(name, runcontrol, this) {
   ui->setupUi(this);
   this->show();
