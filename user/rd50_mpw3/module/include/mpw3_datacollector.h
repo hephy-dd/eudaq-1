@@ -30,7 +30,7 @@ private:
   std::map<eudaq::ConnectionSPC, std::deque<eudaq::EventSPC>> mConnEvque;
   std::set<eudaq::ConnectionSPC> mConnInactive;
 
-  std::unique_ptr<SVD::XLNX_CTRL::FADCGbEMerger> mEventMerger;
+  std::unique_ptr<SVD::XLNX_CTRL::Merger> mEventMerger;
   std::unique_ptr<std::atomic<bool>> mEventBuilderRunning{};
   std::unique_ptr<std::atomic<bool>> mTestRunning{};
   std::unique_ptr<std::thread> mEventBuilderThread{};

@@ -80,6 +80,49 @@ private:
   uint8_t m_VMEBase = 0;
 };
 
+class Splitter {
+public:
+    Splitter() = default;
+    Splitter(PayloadBuffer_t &rBuffer, eudaq::LogSender *logger) noexcept;
+    ~Splitter();
+
+    auto Exit() noexcept { m_IsRunning->store(false, std::memory_order_release); }
+
+    inline auto IsRunning() const noexcept {
+      return m_IsRunning->load(std::memory_order_acquire);
+    }
+    inline auto GetBaseBuffer() noexcept -> PayloadBuffer_t & { return *m_BaseBuffer; }
+    inline auto GetPiggyBuffer() noexcept -> PayloadBuffer_t & { return *m_PiggyBuffer; }
+
+private:
+    auto eventLoop(PayloadBuffer_t &rBuffer) noexcept -> void;
+    inline auto NextFrame(PayloadBuffer_t &rBuffer, Payload_t &rFrame,
+                          int retries = 100) noexcept -> bool {
+      for (; (--retries != 0) && !rBuffer.Pop(rFrame);)
+        ;
+      if (0 == retries)
+        return rBuffer.Pop(rFrame);
+      return true;
+    }
+    auto sortData(Payload_t &frame, FADCPayload_t &buffer, bool piggy) noexcept -> void;
+    inline bool PushData(FADCPayload_t &newData, std::unique_ptr<FADCPayloadBuffer_t> &rFADC, int retries = 100) noexcept;
+
+    static inline auto isPiggy(const Defs::VMEData_t &rWord) {
+        //bit 23 distinguishes between base and piggy data
+        return (rWord & (1 << 23)) == 1 << 23;
+    }
+    static inline auto isBase (const Defs::VMEData_t &rWord) {
+        return !isPiggy(rWord);
+    }
+
+    std::unique_ptr<std::atomic<bool>> m_IsRunning{};
+    std::unique_ptr<FADCPayloadBuffer_t> m_BaseBuffer{};
+    std::unique_ptr<FADCPayloadBuffer_t> m_PiggyBuffer{};
+    std::unique_ptr<std::thread> m_pThread{};
+
+    eudaq::LogSender *m_euLogger;
+};
+
 class Unpacker {
 
 public:
@@ -123,7 +166,7 @@ private:
      * xxx n Bits to fill up 32 bit word
      * {0/1}xxx is 24 bit in total
      */
-    return (rWord >> 23) == (0xAF << 1);
+    return (rWord >> 24) == 0xAF;
   }
 
   static inline auto IsTrailer(const Defs::VMEData_t &rWord) noexcept {
@@ -133,7 +176,7 @@ private:
      * xxx n Bits to fill up 32 bit word
      * {0/1}xxx is 24 bit in total
      */
-    return (rWord >> 23) == (0xE0 << 1);
+    return (rWord >> 24) == 0xF0;
   }
 
   inline auto PushFADCFrame(FADCPayload_t &rFADC, int retries = 100) noexcept {
@@ -156,12 +199,12 @@ private:
 
 } // namespace UPDDetails
 
-class FADCGbEMerger {
+class Merger {
 public:
-  FADCGbEMerger(const std::vector<BackEndID_t> &rIDs, eudaq::LogSender &logger);
-  FADCGbEMerger(const FADCGbEMerger &rOther) = delete;
-  FADCGbEMerger(FADCGbEMerger &&rOther) noexcept;
-  ~FADCGbEMerger();
+  Merger(const BackEndID_t &rIDs, eudaq::LogSender &logger);
+  Merger(const Merger &rOther) = delete;
+  Merger(Merger &&rOther) noexcept;
+  ~Merger();
 
   auto operator()(Event_t &rEvent) noexcept -> bool;
 
@@ -177,8 +220,8 @@ public:
 
 private:
   inline auto Exit() noexcept -> void {
-    for (auto &rReceiver : m_Receivers)
-      rReceiver.Exit();
+    m_Receiver.Exit();
+
     for (auto &rUnpacker : m_Unpackers)
       rUnpacker.Exit();
   }
@@ -188,7 +231,8 @@ private:
     return (rData.front() & 0x7fff);
   }
 
-  std::vector<UPDDetails::Receiver> m_Receivers{};
+  UPDDetails::Receiver m_Receiver{};
+  UPDDetails::Splitter m_Splitter{};
   std::vector<UPDDetails::Unpacker> m_Unpackers{};
   std::atomic<bool> m_EventMissMatch{false};
   Event_t m_Event;

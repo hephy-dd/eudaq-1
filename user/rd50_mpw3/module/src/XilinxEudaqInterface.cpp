@@ -55,15 +55,6 @@ void Receiver::Eventloop() noexcept {
       if (data.empty())
         continue;
 
-      using namespace std::chrono;
-      auto now = duration_cast<microseconds>(
-                     high_resolution_clock::now().time_since_epoch())
-                     .count();
-      uint32_t nowMsb = uint32_t(now >> 32);
-      uint32_t nowLsb = now & 0xffffffff;
-      data.push_back(nowMsb);
-      data.push_back(nowLsb);
-
       auto iRet = 0;
       for (; (iRet < m_gRetries) && !m_Buffer->Push(data); ++iRet)
         ;
@@ -118,16 +109,9 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
   auto frame = Payload_t();
   auto fadc = FADCPayload_t();
   auto lastPayload = 0;
-  uint32_t fw64BitTsMsb, fw64BitTsLsb, cpuTsLsb, cpuTsMsb;
 
   while (this->IsRunning()) {
     if (this->NextFrame(rBuffer, frame)) {
-      cpuTsLsb = frame.back();
-      frame.pop_back();
-      cpuTsMsb = frame.back();
-      frame.pop_back();
-      //      uint64_t cpuTs64Bit =
-      //          uint64_t(cpuTsLsb) + (uint64_t(cpuTsMsb) << uint64_t(32));
       const auto curPayload = PackageID(frame.back());
       frame.pop_back();
       // UDP package counter is located at last word of UDP packet, than
@@ -147,12 +131,6 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
       continue;
     }
 
-    fw64BitTsMsb = frame.back();
-    frame.pop_back();
-    fw64BitTsLsb = frame.back();
-    frame.pop_back();
-    //    uint64_t fw64BitOvflwFull =
-    //        (uint64_t(fw64BitTsMsb) << uint64_t(32)) + uint64_t(fw64BitTsLsb);
     auto itBegin = fadc.empty()
                        ? std::find_if(std::begin(frame), std::end(frame),
                                       &Unpacker::IsMainHeader)
@@ -169,11 +147,7 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
 
       if (Unpacker::IsMainHeader(fadc.front()) &&
           Unpacker::IsTrailer(fadc.back())) {
-        fadc.push_back(fw64BitTsMsb);
 
-        fadc.push_back(fw64BitTsLsb);
-        fadc.push_back(cpuTsMsb);
-        fadc.push_back(cpuTsLsb);
         while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
           //                std::this_thread::sleep_for(std::chrono::microseconds(10));
         }
@@ -194,10 +168,6 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
         fadc.resize(std::distance(itBegin, itEnd) + isTrailer);
         std::copy(itBegin, itEnd + isTrailer, std::begin(fadc));
         if (Unpacker::IsTrailer(fadc.back())) {
-          fadc.push_back(fw64BitTsMsb);
-          fadc.push_back(fw64BitTsLsb);
-          fadc.push_back(cpuTsMsb);
-          fadc.push_back(cpuTsLsb);
           while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
             //                  std::this_thread::sleep_for(std::chrono::microseconds(10));
           }
@@ -215,40 +185,99 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
   }
 }
 
-} // namespace UPDDetails
+Splitter::Splitter(PayloadBuffer_t &rBuffer, eudaq::LogSender *logger) noexcept
+    : m_PiggyBuffer(std::make_unique<FADCPayloadBuffer_t>()),
+      m_BaseBuffer(std::make_unique<FADCPayloadBuffer_t>()),
+      m_IsRunning(std::make_unique<std::atomic<bool>>(true)),
+      m_euLogger(logger), m_pThread(std::make_unique<std::thread>(
+                              &Splitter::eventLoop, this, std::ref(rBuffer))) {}
 
-FADCGbEMerger::FADCGbEMerger(
-    const std::vector<BackEndID_t> &rIDs,
-    // std::shared_ptr<UPDDetails::PayloadBuffer_t> testBuffer,
-    eudaq::LogSender &logger)
-    : m_euLogger(&logger) {
-  m_Event.m_Data.resize(rIDs.size());
-  m_Event.m_Words = 0;
-  m_Receivers.reserve(rIDs.size());
-  m_Unpackers.reserve(rIDs.size());
-
-  for (const auto &rID : rIDs) {
-    m_Receivers.emplace_back(rID, m_euLogger);
-  }
-  //      m_Unpackers.emplace_back(*testBuffer, logger);
-  for (auto &rReceiver : m_Receivers) {
-    m_Unpackers.emplace_back(rReceiver.GetBuffer(), m_euLogger);
+Splitter::~Splitter() {
+  if ((m_pThread.get() != nullptr) && m_pThread->joinable()) {
+    Exit();
+    m_pThread->join();
   }
 }
 
-FADCGbEMerger::FADCGbEMerger(FADCGbEMerger &&rOther) noexcept
-    : m_Receivers(std::move(rOther.m_Receivers)),
+void Splitter::eventLoop(PayloadBuffer_t &rBuffer) noexcept {
+  auto frame = Payload_t();
+  auto piggyBuffer = FADCPayload_t();
+  auto baseBuffer = FADCPayload_t();
+
+  while (IsRunning()) {
+    if (NextFrame(rBuffer, frame)) {
+      sortData(frame, piggyBuffer, true);
+      sortData(frame, baseBuffer, false);
+      if (piggyBuffer.size() > 0) {
+        while (!PushData(piggyBuffer, m_PiggyBuffer) && IsRunning()) {
+        }
+        piggyBuffer.clear();
+      }
+      if (baseBuffer.size() > 0) {
+        while (!PushData(baseBuffer, m_BaseBuffer) && IsRunning()) {
+        }
+        baseBuffer.clear();
+      }
+    } else {
+      continue;
+    }
+  }
+}
+
+void SVD::XLNX_CTRL::UPDDetails::Splitter::sortData(Payload_t &frame,
+                                                    FADCPayload_t &buffer,
+                                                    bool piggy) noexcept {
+  buffer.resize(FADCBufferSize); // reserve space for worst case, full frame
+                                 // contains only one type of data
+  auto tester = Splitter::isPiggy;
+  if (!piggy) {
+    tester = Splitter::isBase;
+  }
+  auto it = std::copy_if(frame.begin(), frame.end(), buffer.begin(),
+                         tester); // it points to last copied element in buffer
+  buffer.resize(
+      std::distance(buffer.begin(), it)); // shrink buffer to needed size
+}
+
+bool Splitter::PushData(FADCPayload_t &newData,
+                        std::unique_ptr<FADCPayloadBuffer_t> &buffer,
+                        int retries) noexcept {
+
+  for (; (--retries != 0) && !buffer->Push(newData);)
+    ;
+  if (0 == retries)
+    return buffer->Push(newData);
+  return true;
+}
+
+} // namespace UPDDetails
+
+Merger::Merger(const BackEndID_t &rID,
+               // std::shared_ptr<UPDDetails::PayloadBuffer_t> testBuffer,
+               eudaq::LogSender &logger)
+    : m_euLogger(&logger), m_Receiver(rID, &logger),
+      m_Splitter(m_Receiver.GetBuffer(), &logger) {
+  m_Event.m_Data.resize(1);
+  m_Event.m_Words = 0;
+
+  m_Unpackers.emplace_back(m_Splitter.GetBaseBuffer(), m_euLogger);
+  m_Unpackers.emplace_back(m_Splitter.GetPiggyBuffer(), m_euLogger);
+}
+
+Merger::Merger(Merger &&rOther) noexcept
+    : m_Receiver(std::move(rOther.m_Receiver)),
       m_Unpackers(std::move(rOther.m_Unpackers)),
       m_euLogger(rOther.m_euLogger) {}
 
-FADCGbEMerger::~FADCGbEMerger() { this->Exit(); }
+Merger::~Merger() { this->Exit(); }
 
-bool FADCGbEMerger::operator()(Event_t &rEvent) noexcept {
+bool Merger::operator()(Event_t &rEvent) noexcept {
   if (std::any_of(std::begin(m_Unpackers), std::end(m_Unpackers),
                   [](const auto &rUnpacker) noexcept {
                     return rUnpacker.IsEmpty();
-                  })) // do nothing when unpackers have no data
+                  })) { // do nothing when unpackers have no data
     return false;
+  }
 
   rEvent.m_Data.resize(m_Unpackers.size());
   rEvent.m_Words = 0;
@@ -256,22 +285,6 @@ bool FADCGbEMerger::operator()(Event_t &rEvent) noexcept {
     while (!m_Unpackers[iFADC].PopFADCPayload(rEvent.m_Data[iFADC]))
       std::this_thread::sleep_for(std::chrono::microseconds(10));
     rEvent.m_Words += rEvent.m_Data[iFADC].size();
-  }
-  if (rEvent.m_Data.front().size() >= 4) {
-    rEvent.m_recvTsCpu = rEvent.m_Data.front().back();
-    rEvent.m_Data.front().pop_back();
-    rEvent.m_recvTsCpu |= uint64_t(rEvent.m_Data.front().back()) << 32;
-    rEvent.m_Data.front().pop_back();
-    rEvent.m_recvTsFw = rEvent.m_Data.front().back();
-    rEvent.m_Data.front().pop_back();
-    rEvent.m_recvTsFw |= uint64_t(rEvent.m_Data.front().back()) << 32;
-    rEvent.m_Data.front().pop_back();
-  } else {
-    m_euLogger->SendLogMessage(
-        eudaq::LogMessage("frame too small for TS extraction in merger: " +
-                              std::to_string(rEvent.m_Data.front().size()),
-                          eudaq::LogMessage::LVL_WARN));
-    return false;
   }
   return true;
 }

@@ -52,8 +52,8 @@ void Mpw3FastDataCollector::DoStartRun() {
 
   const int maxPingRetries = 5;
 
-  mEventMerger = std::make_unique<SVD::XLNX_CTRL::FADCGbEMerger>(
-      mBackEndIDs, eudaq::GetLogger());
+  mEventMerger = std::make_unique<SVD::XLNX_CTRL::Merger>(mBackEndIDs.front(),
+                                                          eudaq::GetLogger());
 
   mEventBuilderRunning = std::make_unique<std::atomic<bool>>(true);
   mEventBuilderThread = std::make_unique<std::thread>(
@@ -104,26 +104,8 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
   while (mEventBuilderRunning->load(std::memory_order_acquire)) {
     if ((*mEventMerger)(frame)) {
       // simply put data in event, StandardEventConverter got time to extract
-      // triggerNr, pixelHit,...
+      // timestamps and pixel hits
 
-      euEvent->SetTag("recvTS_FW", frame.m_recvTsFw);
-      euEvent->SetTag("recvTS_CPU", frame.m_recvTsCpu);
-
-      // take overflow into account, trigger comes with 16 bit precision
-      // in case you are wondering, yes TLU has only 15 bits, but we don't
-      // sample triggerN from TLU but increment own counter in FPGA
-      uint64_t currTrgN = frame.m_EventNr + triggerOvflw * (1 << 16);
-      if (currTrgN < oldTrgN) {
-        triggerOvflw++;
-        currTrgN = frame.m_EventNr +
-                   triggerOvflw * (1 << 16); // update current trigger
-      }
-      //      if (currTrgN != oldTrgN + 1) {
-      //        EUDAQ_WARN("missed trigger " + std::to_string(oldTrgN + 1) +
-      //        "\n");
-      //      }
-      oldTrgN = currTrgN;
-      euEvent->SetTriggerN(currTrgN);
       for (int i = 0; i < frame.m_Data.size(); i++) {
         euEvent->AddBlock(i, frame.m_Data[i]);
         euEvent->SetTag("frameNmb", nEuEvent);
