@@ -7,14 +7,15 @@ public:
   bool Converting(eudaq::EventSPC d1, eudaq::StdEventSP d2,
                   eudaq::ConfigSPC conf) const override;
   static const uint32_t m_id_factory = eudaq::cstr2hash("RD50_Mpw3Event");
-  static bool foundT0;
+  static bool foundT0Base, foundT0Piggy;
 };
 
-bool Mpw3Raw2StdEventConverter::foundT0 = false;
+bool Mpw3Raw2StdEventConverter::foundT0Base = false;
+bool Mpw3Raw2StdEventConverter::foundT0Piggy = false;
 
 namespace {
-auto dummy0 = eudaq::Factory<eudaq::StdEventConverter>::Register<
-    Mpw3Raw2StdEventConverter>(Mpw3Raw2StdEventConverter::m_id_factory);
+  auto dummy0 = eudaq::Factory<eudaq::StdEventConverter>::Register<
+      Mpw3Raw2StdEventConverter>(Mpw3Raw2StdEventConverter::m_id_factory);
 }
 
 bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
@@ -24,18 +25,18 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
   enum class TimestampMode { Base, Piggy };
 
   TimestampMode tsMode = TimestampMode::Base;
-  auto tag = d1->GetTag("syncMode");
-  if (tag == "1") {
-    tsMode = TimestampMode::Base;
-  } else if (tag == "2") {
-    tsMode = TimestampMode::Piggy;
-  }
+
   double t0 = -1.0;
   bool filterZeroWords = true;
+  bool weArePiggy = false;
+  int tShift = 0;
   if (conf != nullptr) {
     t0 = conf->Get("t0_skip_time", -1.0);
     filterZeroWords = conf->Get("filter_zeros", true);
+    tShift = conf->Get("mpw3_tshift", 0);
+    weArePiggy = conf->Get("is_piggy", false);
   }
+
   auto ev = std::dynamic_pointer_cast<const eudaq::RawEvent>(d1);
 
   for (int i = 0; i < ev->NumBlocks(); i++) {
@@ -47,6 +48,7 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
       // no hits in event just trigger word,
       // actually not usable, but don't fail for debug purposes
       EUDAQ_WARN("empty event");
+      return false;
     }
 
     /*
@@ -61,12 +63,12 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
     basePlane.SetSizeZS(DefsMpw3::dimSensorCol, DefsMpw3::dimSensorRow, 0);
     piggyPlane.SetSizeZS(DefsMpw3::dimSensorCol, DefsMpw3::dimSensorRow, 0);
     DefsMpw3::word_t sofWord, eofWord;
-    DefsMpw3::ts_t minSofOvflw = -1, maxEofOvflw = 0;
     int sofCnt = 0, eofCnt = 0, hitCnt = 0;
     double avgTsLe = 0.0, avgTsTe = 0.0;
     int errorCnt = 0;
 
     bool insideFrame = false;
+    DefsMpw3::ts_t frameTs;
 
     for (const auto &word : rawdata) {
       /*
@@ -86,6 +88,15 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
       }
 
       DefsMpw3::HitInfo hi(word);
+
+      // std::cout << std::hex << hi.initialWord << "\n";
+
+      // if (hi.piggy) {
+      //   tsMode = TimestampMode::Piggy;
+      // } else {
+      //   tsMode = TimestampMode::Base;
+      // }
+
       if (hi.sof) {
         if ((tsMode == TimestampMode::Base && hi.piggy) ||
             (tsMode == TimestampMode::Piggy && !hi.piggy)) {
@@ -105,19 +116,16 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
         eofWord = hi.initialWord;
         eofCnt++;
         if (!insideFrame) {
-          EUDAQ_WARN("EOF before SOF");
+          //          EUDAQ_WARN("EOF before SOF");
           // we only except full frames
           // incomplete frames discarded
           errorCnt++;
           //          continue;
         }
         insideFrame = false;
-        auto sofOvflw = DefsMpw3::frameOvflw(sofWord, eofWord, false);
-        auto eofOvflw = DefsMpw3::frameOvflw(sofWord, eofWord, true);
-
-        minSofOvflw = minSofOvflw > sofOvflw ? sofOvflw : minSofOvflw;
-        maxEofOvflw = maxEofOvflw < eofOvflw ? eofOvflw : maxEofOvflw;
+        frameTs = DefsMpw3::frameTimestamp(sofWord, eofWord);
         eofCnt++;
+        // std::cout << "eof "<< std::hex << hi.initialWord <<std::dec << "\n";
         continue;
       }
       if (hi.triggerNmb > 0) {
@@ -142,18 +150,30 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
      * current frame
      */
     if (sofCnt > 0 && eofCnt > 0) {
-      uint64_t timeBegin =
-          (minSofOvflw * DefsMpw3::dTPerOvflw) * DefsMpw3::lsbTime;
+      // std::cout << "sof =  " << sofWord << " eof = " << eofWord << "\n";
+      uint64_t timeBegin = frameTs * DefsMpw3::lsbTime + tShift * 1e6;
       uint64_t timeEnd = timeBegin;
       //(maxEofOvflw * DefsMpw3::dTPerOvflw) * DefsMpw3::lsbTime;
 
       if (t0 < 0.0) {
-        foundT0 = true;
+        if (!weArePiggy) {
+          foundT0Base = true;
+        } else {
+          foundT0Piggy = true;
+        }
       } else if (timeBegin < uint64_t(t0)) {
-        foundT0 = true;
+        if (!weArePiggy) {
+
+          foundT0Base = true;
+        } else {
+          foundT0Piggy = true;
+        }
       }
 
-      if (!foundT0) {
+      if (!foundT0Base && !weArePiggy) {
+        return false;
+      }
+      if (!foundT0Piggy && weArePiggy) {
         return false;
       }
 
@@ -162,12 +182,18 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
       d2->SetTriggerN(d1->GetTriggerN());
     } else {
       EUDAQ_WARN("Not possible to generate timestamp");
+      // std::cout << "sofs " << sofCnt << " eofs " << eofCnt << "\n";
+
       return false;
     }
 
     d2->SetDescription("RD50_MPW3");
-    d2->AddPlane(basePlane);
-    d2->AddPlane(piggyPlane);
+    if (basePlane.NumFrames() > 0) {
+      d2->AddPlane(basePlane);
+    }
+    if (piggyPlane.NumFrames() > 0) {
+      d2->AddPlane(piggyPlane);
+    }
   }
   return true;
 }
