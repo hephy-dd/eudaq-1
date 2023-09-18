@@ -98,7 +98,7 @@ void Mpw3FastDataCollector::DoReceive(eudaq::ConnectionSPC idx,
 void Mpw3FastDataCollector::WriteEudaqEventLoop() {
   SVD::XLNX_CTRL::Event_t frame;
   uint32_t nEuEvent = 0;
-  auto euEvent = eudaq::Event::MakeShared("RD50_Mpw3Event");
+  //  auto euEvent = eudaq::Event::MakeShared("RD50_Mpw3Event");
   uint64_t triggerOvflw = 0, oldTrgN = 0;
 
   while (mEventBuilderRunning->load(std::memory_order_acquire)) {
@@ -106,7 +106,10 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
       // simply put data in event, StandardEventConverter got time to extract
       // timestamps and pixel hits
 
+      //      std::cout << "collector has it\n";
+
       for (int i = 0; i < frame.m_Data.size(); i++) {
+        auto euEvent = eudaq::Event::MakeShared("RD50_Mpw3Event");
         euEvent->AddBlock(i, frame.m_Data[i]);
         euEvent->SetTag("frameNmb", nEuEvent);
         euEvent->SetEventN(frame.m_EventNr);

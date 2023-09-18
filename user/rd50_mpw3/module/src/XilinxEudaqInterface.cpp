@@ -1,6 +1,7 @@
 #include "XilinxEudaqInterface.h"
 //#include "../tools/Logger.h"
 
+#include <any>
 #include <sstream>
 
 namespace SVD {
@@ -36,6 +37,7 @@ void Receiver::Eventloop() noexcept {
 
       if (size == -1)
         continue;
+      std::cout << "received pack\n";
 
       size = size / sizeof(decltype(data)::value_type);
 
@@ -111,7 +113,9 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
   auto lastPayload = 0;
 
   while (this->IsRunning()) {
+    continue;
     if (this->NextFrame(rBuffer, frame)) {
+      std::cout << "Unpacker got it too\n";
       const auto curPayload = PackageID(frame.back());
       frame.pop_back();
       // UDP package counter is located at last word of UDP packet, than
@@ -206,6 +210,11 @@ void Splitter::eventLoop(PayloadBuffer_t &rBuffer) noexcept {
 
   while (IsRunning()) {
     if (NextFrame(rBuffer, frame)) {
+      //      std::cout << "splitter got frame\n";
+      //      for (const auto &w : frame) {
+      //        std::cout << std::hex << w << " : " << isPiggy(w) << ", ";
+      //      }
+      //      std::cout << "\n";
       sortData(frame, piggyBuffer, true);
       sortData(frame, baseBuffer, false);
       if (piggyBuffer.size() > 0) {
@@ -227,8 +236,8 @@ void Splitter::eventLoop(PayloadBuffer_t &rBuffer) noexcept {
 void SVD::XLNX_CTRL::UPDDetails::Splitter::sortData(Payload_t &frame,
                                                     FADCPayload_t &buffer,
                                                     bool piggy) noexcept {
-  buffer.resize(FADCBufferSize); // reserve space for worst case, full frame
-                                 // contains only one type of data
+  buffer.resize(m_gMaxBufferSize); // reserve space for worst case, full frame
+                                   // contains only one type of data
   auto tester = Splitter::isPiggy;
   if (!piggy) {
     tester = Splitter::isBase;
@@ -278,7 +287,7 @@ bool Merger::operator()(Event_t &rEvent) noexcept {
                   })) { // do nothing when unpackers have no data
     return false;
   }
-
+  //  std::cout << "merger got it\n";
   rEvent.m_Data.resize(m_Unpackers.size());
   rEvent.m_Words = 0;
   for (auto iFADC = 0ul; iFADC < m_Unpackers.size(); ++iFADC) {

@@ -82,45 +82,54 @@ private:
 
 class Splitter {
 public:
-    Splitter() = default;
-    Splitter(PayloadBuffer_t &rBuffer, eudaq::LogSender *logger) noexcept;
-    ~Splitter();
+  Splitter() = default;
+  Splitter(PayloadBuffer_t &rBuffer, eudaq::LogSender *logger) noexcept;
+  ~Splitter();
 
-    auto Exit() noexcept { m_IsRunning->store(false, std::memory_order_release); }
+  auto Exit() noexcept { m_IsRunning->store(false, std::memory_order_release); }
 
-    inline auto IsRunning() const noexcept {
-      return m_IsRunning->load(std::memory_order_acquire);
-    }
-    inline auto GetBaseBuffer() noexcept -> PayloadBuffer_t & { return *m_BaseBuffer; }
-    inline auto GetPiggyBuffer() noexcept -> PayloadBuffer_t & { return *m_PiggyBuffer; }
+  inline auto IsRunning() const noexcept {
+    return m_IsRunning->load(std::memory_order_acquire);
+  }
+  inline auto GetBaseBuffer() noexcept -> PayloadBuffer_t & {
+    return *m_BaseBuffer;
+  }
+  inline auto GetPiggyBuffer() noexcept -> PayloadBuffer_t & {
+    return *m_PiggyBuffer;
+  }
 
 private:
-    auto eventLoop(PayloadBuffer_t &rBuffer) noexcept -> void;
-    inline auto NextFrame(PayloadBuffer_t &rBuffer, Payload_t &rFrame,
-                          int retries = 100) noexcept -> bool {
-      for (; (--retries != 0) && !rBuffer.Pop(rFrame);)
-        ;
-      if (0 == retries)
-        return rBuffer.Pop(rFrame);
-      return true;
-    }
-    auto sortData(Payload_t &frame, FADCPayload_t &buffer, bool piggy) noexcept -> void;
-    inline bool PushData(FADCPayload_t &newData, std::unique_ptr<FADCPayloadBuffer_t> &rFADC, int retries = 100) noexcept;
+  auto eventLoop(PayloadBuffer_t &rBuffer) noexcept -> void;
+  inline auto NextFrame(PayloadBuffer_t &rBuffer, Payload_t &rFrame,
+                        int retries = 100) noexcept -> bool {
+    for (; (--retries != 0) && !rBuffer.Pop(rFrame);)
+      ;
+    if (0 == retries)
+      return rBuffer.Pop(rFrame);
+    return true;
+  }
+  auto sortData(Payload_t &frame, FADCPayload_t &buffer, bool piggy) noexcept
+      -> void;
+  inline bool PushData(FADCPayload_t &newData,
+                       std::unique_ptr<FADCPayloadBuffer_t> &rFADC,
+                       int retries = 100) noexcept;
 
-    static inline auto isPiggy(const Defs::VMEData_t &rWord) {
-        //bit 23 distinguishes between base and piggy data
-        return (rWord & (1 << 23)) == 1 << 23;
-    }
-    static inline auto isBase (const Defs::VMEData_t &rWord) {
-        return !isPiggy(rWord);
-    }
+  static inline auto isPiggy(const Defs::VMEData_t &rWord) {
+    // bit 23 distinguishes between base and piggy data
+    return (rWord & (1 << 23)) == 1 << 23;
+  }
+  static inline auto isBase(const Defs::VMEData_t &rWord) {
+    return !isPiggy(rWord);
+  }
 
-    std::unique_ptr<std::atomic<bool>> m_IsRunning{};
-    std::unique_ptr<FADCPayloadBuffer_t> m_BaseBuffer{};
-    std::unique_ptr<FADCPayloadBuffer_t> m_PiggyBuffer{};
-    std::unique_ptr<std::thread> m_pThread{};
+  static constexpr auto m_gMaxBufferSize = 2500;
 
-    eudaq::LogSender *m_euLogger;
+  std::unique_ptr<std::atomic<bool>> m_IsRunning{};
+  std::unique_ptr<FADCPayloadBuffer_t> m_BaseBuffer{};
+  std::unique_ptr<FADCPayloadBuffer_t> m_PiggyBuffer{};
+  std::unique_ptr<std::thread> m_pThread{};
+
+  eudaq::LogSender *m_euLogger;
 };
 
 class Unpacker {
@@ -132,7 +141,10 @@ public:
   ~Unpacker();
 
   inline auto IsRunning() const noexcept {
-    return m_IsRunning->load(std::memory_order_acquire);
+    if (m_IsRunning != nullptr) {
+      return m_IsRunning->load(std::memory_order_acquire);
+    }
+    return false;
   }
 
   auto Exit() noexcept { m_IsRunning->store(false, std::memory_order_release); }
