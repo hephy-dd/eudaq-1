@@ -80,11 +80,11 @@ private:
   uint8_t m_VMEBase = 0;
 };
 
-class Splitter {
+class Sorter {
 public:
-  Splitter() = default;
-  Splitter(PayloadBuffer_t &rBuffer, eudaq::LogSender *logger) noexcept;
-  ~Splitter();
+  Sorter() = default;
+  Sorter(PayloadBuffer_t &rBuffer, eudaq::LogSender *logger) noexcept;
+  ~Sorter();
 
   auto Exit() noexcept { m_IsRunning->store(false, std::memory_order_release); }
 
@@ -136,7 +136,7 @@ class Unpacker {
 
 public:
   Unpacker() = default;
-  Unpacker(PayloadBuffer_t &rBuffer, eudaq::LogSender *logger) noexcept;
+  Unpacker(PayloadBuffer_t &rBuffer, eudaq::LogSender *logger, const std::string &name = "") noexcept;
   Unpacker(Unpacker &&rOther) noexcept;
   ~Unpacker();
 
@@ -207,6 +207,7 @@ private:
   std::unique_ptr<std::thread> m_pThread{};
 
   eudaq::LogSender *m_euLogger;
+  std::string m_name;
 };
 
 } // namespace UPDDetails
@@ -244,7 +245,7 @@ private:
   }
 
   UPDDetails::Receiver m_Receiver{};
-  UPDDetails::Splitter m_Splitter{};
+  UPDDetails::Sorter m_Splitter{};
   std::vector<UPDDetails::Unpacker> m_Unpackers{};
   std::atomic<bool> m_EventMissMatch{false};
   Event_t m_Event;

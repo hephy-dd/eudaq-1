@@ -106,8 +106,6 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
       // simply put data in event, StandardEventConverter got time to extract
       // timestamps and pixel hits
 
-      //      std::cout << "collector has it\n";
-
       for (int i = 0; i < frame.m_Data.size(); i++) {
         auto euEvent = eudaq::Event::MakeShared("RD50_Mpw3Event");
         euEvent->AddBlock(i, frame.m_Data[i]);
