@@ -147,7 +147,8 @@ public:
     return false;
   }
 
-  auto Exit() noexcept { m_IsRunning->store(false, std::memory_order_release); }
+  auto Exit() noexcept {
+      m_IsRunning->store(false, std::memory_order_release); }
 
   inline auto PopFADCPayload(FADCPayload_t &rPayload,
                              int retries = 100) noexcept -> bool {
@@ -233,6 +234,7 @@ public:
 
 private:
   inline auto Exit() noexcept -> void {
+      std::cout << "merger exit\n";
     m_Receiver.Exit();
 
     for (auto &rUnpacker : m_Unpackers)

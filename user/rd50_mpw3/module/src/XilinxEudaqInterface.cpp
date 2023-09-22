@@ -99,19 +99,21 @@ Unpacker::Unpacker(PayloadBuffer_t &rBuffer, eudaq::LogSender *logger,
     : m_IsRunning(std::make_unique<std::atomic<bool>>(true)),
       m_FADCBuffer(std::make_unique<FADCPayloadBuffer_t>()), m_euLogger(logger),
       m_name(name) {
+  m_IsRunning->store(true);
   m_pThread = std::make_unique<std::thread>(&Unpacker::EventLoop, this,
                                             std::ref(rBuffer));
-  std::cout << "logger = " << logger << "\n";
 }
 
 Unpacker::Unpacker(Unpacker &&rOther) noexcept
     : m_IsRunning(std::move(rOther.m_IsRunning)),
       m_FADCBuffer(std::move(rOther.m_FADCBuffer)),
-      m_pThread(std::move(rOther.m_pThread)) {}
+      m_pThread(std::move(rOther.m_pThread)), m_name(rOther.m_name) {}
 
 Unpacker::~Unpacker() {
-  if ((m_pThread.get() != nullptr) && m_pThread->joinable()) {
+  if (m_IsRunning != nullptr) {
     this->Exit();
+  }
+  if ((m_pThread.get() != nullptr) && m_pThread->joinable()) {
     m_pThread->join();
   }
 }
@@ -120,19 +122,8 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
   auto fadc = FADCPayload_t();
   auto lastPayload = 0;
 
-  std::cout << "\n\nstarted " << m_name << " unpacker with " << &rBuffer
-            << "\n\n";
-
   while (this->IsRunning()) {
-    //    std::cout << "hoping for data with " << m_name << " " <<
-    //    rBuffer.IsEmpty()
-    //              << "\n";
     if (this->NextFrame(rBuffer, frame)) {
-      std::cout << "Unpacker " << m_name << " got it too\n";
-      //      for (const auto &w : frame) {
-      //        std::cout << std::hex << w << " ";
-      //      }
-      //      std::cout << "\n";
       const auto curPayload = PackageID(frame.back());
       frame.pop_back();
       // UDP package counter is located at last word of UDP packet, than
@@ -152,7 +143,6 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
     } else {
       continue;
     }
-    std::cout << "fadc empty? " << fadc.empty() << "\n";
     auto itBegin = fadc.empty()
                        ? std::find_if(std::begin(frame), std::end(frame),
                                       &Unpacker::IsMainHeader)
@@ -164,9 +154,6 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
 
       const auto offset = fadc.size();
       const auto isTrailer = Unpacker::IsTrailer(*itEnd);
-      std::cout << "resizing1 to " << itBegin.base() << " " << itEnd.base()
-                << " " << offset + std::distance(itBegin, itEnd + isTrailer)
-                << "\n";
       fadc.resize(offset + std::distance(itBegin, itEnd + isTrailer));
       std::copy(itBegin, itEnd + isTrailer, fadc.begin() + offset);
 
@@ -191,35 +178,15 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
         //        std::cout << "got end\n";
         // const auto notSplit = itEnd != std::end(frame);
         const auto isTrailer = Unpacker::IsTrailer(*itEnd);
-        //        std::cout << "end trailer " << isTrailer << "\n";
-
-        //        std::cout << "resizing2 to "
-        //                     " "
-        //                  << std::distance(itBegin, itEnd) + isTrailer << " "
-        //                  << *itBegin << " " << *itEnd << "\n";
-        ;
-        //        continue;
-        //        for (auto i = itBegin; i != itEnd + isTrailer; i++) {
-        //          std::cout << std::hex << *i << " ";
-        //        }
-        auto tmp =
-            std::find_if(itEnd, std::end(frame) - 1, &Unpacker::IsMainHeader);
-        //        std::cout << "prepare next " << *tmp << " "
-        //                  << (tmp != std::end(frame) - 1) << "\n";
         fadc.resize(std::distance(itBegin, itEnd) + isTrailer);
-        //        fadc.resize(30);
-        //        std::cout << "resizing done\n" << std::flush;
         std::copy(itBegin, itEnd + isTrailer, fadc.begin());
-        //        std::cout << "copy done\n" << std::flush;
         if (Unpacker::IsTrailer(fadc.back())) {
           while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
             //                  std::this_thread::sleep_for(std::chrono::microseconds(10));
           }
-          //          std::cout << "pushed\n";
           fadc.clear();
         }
       }
-      //      std::cout << "finished for\n";
     }
 
     if (fadc.size() > 5 * FADCBufferSize) {
@@ -229,7 +196,6 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
       //                            eudaq::LogMessage::LVL_WARN));
       fadc.clear();
     }
-    //    std::cout << "doing next loop " << fadc.empty() << "\n";
   }
 }
 
@@ -265,7 +231,6 @@ void Sorter::eventLoop(PayloadBuffer_t &rBuffer) noexcept {
     if (piggyBuffer.size() > 0) {
 
       piggyBuffer.push_back(curPayload);
-      std::cout << "pushed piggy" << piggyBuffer.size() << "\n";
       ;
       while (!PushData(piggyBuffer, m_PiggyBuffer) && IsRunning()) {
       }
@@ -273,7 +238,6 @@ void Sorter::eventLoop(PayloadBuffer_t &rBuffer) noexcept {
     }
     sortData(frame, baseBuffer, false);
     if (baseBuffer.size() > 0) {
-      std::cout << "pushed base " << baseBuffer.size() << "\n";
       baseBuffer.push_back(curPayload);
       while (!PushData(baseBuffer, m_BaseBuffer) && IsRunning()) {
       }
@@ -283,9 +247,7 @@ void Sorter::eventLoop(PayloadBuffer_t &rBuffer) noexcept {
 
 void Sorter::sortData(Payload_t &frame, FADCPayload_t &buffer,
                       bool piggy) noexcept {
-  //  if (piggy) {
-  //    return;
-  //  }
+
   buffer.resize(m_gMaxBufferSize); // reserve space for worst case, full frame
                                    // contains only one type of data
   auto tester = Sorter::isPiggy;
@@ -296,11 +258,6 @@ void Sorter::sortData(Payload_t &frame, FADCPayload_t &buffer,
                          tester); // it points to last copied element in buffer
   buffer.resize(
       std::distance(buffer.begin(), it - 1)); // shrink buffer to needed size
-
-  //  for (const auto &w : buffer) {
-  //    std::cout << std::hex << w << " ";
-  //  }
-  //  std::cout << "\n\nbuffer = " << buffer.size() << " " << piggy << "\n";
 }
 
 bool Sorter::PushData(FADCPayload_t &newData,
@@ -325,10 +282,10 @@ Merger::Merger(const BackEndID_t &rID,
   m_Event.m_Data.resize(1);
   m_Event.m_Words = 0;
 
-  m_Unpackers.emplace_back(m_Splitter.GetBaseBuffer(), m_euLogger, "base");
-  m_Unpackers.emplace_back(m_Splitter.GetPiggyBuffer(), m_euLogger, "piggy");
+  m_Unpackers.reserve(2);
 
-  std::cout << "\n\n\nworking with " << m_Unpackers.size() << " unpackers\n";
+  m_Unpackers.emplace_back(m_Splitter.GetBaseBuffer(), nullptr, "base");
+  m_Unpackers.emplace_back(m_Splitter.GetPiggyBuffer(), nullptr, "piggy");
 }
 
 Merger::Merger(Merger &&rOther) noexcept
@@ -339,15 +296,7 @@ Merger::Merger(Merger &&rOther) noexcept
 Merger::~Merger() { this->Exit(); }
 
 bool Merger::operator()(Event_t &rEvent) noexcept {
-  bool dataAvailable = false;
-  for (const auto &u : m_Unpackers) {
-    if (!u.IsEmpty()) {
-      dataAvailable = true;
-    }
-  }
-  if (!dataAvailable) {
-    return false;
-  }
+
   if (std::all_of(std::begin(m_Unpackers), std::end(m_Unpackers),
                   [](const auto &rUnpacker) noexcept {
                     return rUnpacker.IsEmpty();
