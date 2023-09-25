@@ -225,7 +225,6 @@ void Sorter::eventLoop(PayloadBuffer_t &rBuffer) noexcept {
     const auto curPayload =
         frame.back(); // we have to forward UDP packNmb to both Unpackers
 
-    std::cout << "sorter got pack " << PackageID(curPayload) << "\n";
     frame.pop_back();
     sortData(frame, piggyBuffer, true);
     if (piggyBuffer.size() > 0) {
@@ -253,6 +252,10 @@ void Sorter::sortData(Payload_t &frame, FADCPayload_t &buffer,
   auto tester = Sorter::isPiggy;
   if (!piggy) {
     tester = Sorter::isBase;
+  }
+  if (std::count_if(frame.begin(), frame.end(), tester) == 0) {
+    buffer.resize(0);
+    return;
   }
   auto it = std::copy_if(frame.begin(), frame.end(), buffer.begin(),
                          tester); // it points to last copied element in buffer

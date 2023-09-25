@@ -108,9 +108,14 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
 
       for (int i = 0; i < frame.m_Data.size(); i++) {
         auto euEvent = eudaq::Event::MakeShared("RD50_Mpw3Event");
+        if (frame.m_Data[i].empty()) {
+          continue;
+        }
         euEvent->AddBlock(i, frame.m_Data[i]);
         euEvent->SetTag("frameNmb", nEuEvent);
         euEvent->SetEventN(frame.m_EventNr);
+        auto type = i == 0 ? "Base" : "Piggy";
+        euEvent->SetTag("Type", type);
         WriteEvent(euEvent);
         nEuEvent++;
         // there might be more than 1 unpacker
