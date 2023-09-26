@@ -30,9 +30,6 @@ static constexpr ts_t dTPerOvflw =
 static constexpr ts_t dTSameEvt =
     0; // the timewindow in LSB in which multiple hits are considered to
        // belong to the same event
-static constexpr ts_t dtPerOvflwOfOvwfl = dTPerOvflw * 256;
-// ovflCnt comes with 8 bit, 1 ovflw ~ 12.8us => 1 ovflw of the ovflw ~ 3.278
-// ms
 static constexpr ts_t lsbToleranceOvflwDcol =
     5; // there's an ovflw detection within a dcol, done by comparing TSLE of
        // two consecutive hits. Whenever difference between these is bigger than
@@ -61,33 +58,7 @@ word_t inline extractTsLe(word_t word) { return word & 0xFF; } // TS_LE
 word_t inline extractPiggy(word_t word) {
   return (word >> 23) & 0x01;
 } // piggy or base
-word_t inline extractOverFlowCnt(word_t word) { return word & 0x7FFFFF; }
-word_t inline extractTriggerNmb(word_t word) { return word & 0xFFFF; }
-auto inline frameTimestamp(ts_t sof, ts_t eof) {
-
-  /*
-   * To allow an overflowCounter of 38bit width it is split into SOF and EOF
-   * words in the following manner:
-   * SOF:
-   * 0xaf piggy/base -1-> [22..0] <-1-
-   * EOF:
-   * 0xE0 piggy/base -1->[37..23]<-1- -2->[7..0] <-2-
-   *
-   * The values marked in -1->x<-1- is the 38 bit ovflw counter
-   * [22..0] means bit 0 -> 22 of the 38 bit ovflw,
-   * these have to be combined with bit 37 - 23 in [37..23] to generate full 38
-   * bit
-   *
-   * In -2->y<-2- the value corresponds to the value of the 8 LSBs of the
-   * FPGA internal ovflwCnt at the time the EOF  arrived piggy/base is one bit
-   * to distingiush between data from piggy and base, not needed here
-   */
-  sof &= 0x7FFFFF; // upper 9 bit distinguish only SOF / EOF
-  eof &= 0x7FFFFF;
-  DefsMpw3::ts_t frameTs = sof;
-  frameTs |= (eof << 23);
-  return frameTs;
-}
+word_t inline extractTimestamp(word_t word) { return word & 0x7FFFFF; }
 
 bool inline isSOF(word_t word) {
   return word >> 24 == 0xAF;
@@ -95,9 +66,8 @@ bool inline isSOF(word_t word) {
 bool inline isEOF(word_t word) {
   return word >> 24 == 0xE0;
 } // is given word End Of Frame?
-bool inline isTrigger(word_t word) {
-  return (word >> 16 & 0xFF7F) == 0xFF7F;
-} // works for both trigger from Piggy and Base FIFO
+bool inline isTLUTsLSB(word_t word) { return word >> 24 == 0xBF; }
+bool inline isTLUTsMSB(word_t word) { return word >> 24 == 0xF0; }
 
 static inline PixelIndex dColIdx2Pix(size_t dcol, size_t pix) {
   /*
@@ -141,9 +111,9 @@ static inline PixelIndex dColIdx2Pix(size_t dcol, size_t pix) {
 }
 
 struct HitInfo {
-  word_t dcol, pix, tsTe, tsLe, OvFlwCnt, initialWord;
-  int tot, triggerNmb = -1;
-  bool sof, eof, piggy, hitWord;
+  word_t dcol, pix, tsTe, tsLe, timestamp, initialWord;
+  int tot;
+  bool sof, eof, piggy, hitWord, isTimestamp, isTluTsLsb, isTluTsMsb;
   PixelIndex pixIdx;
   HitInfo(word_t word) {
     initialWord = word;
@@ -153,15 +123,18 @@ struct HitInfo {
     tsLe = extractTsLe(word);
     calcTot();
 
-    OvFlwCnt = extractOverFlowCnt(word);
-    if (isTrigger(word)) {
-      triggerNmb = int(extractTriggerNmb(word));
-      hitWord = false;
-      eof = sof = false;
-    }
     sof = isSOF(word);
     eof = isEOF(word);
-    hitWord = !sof & !eof & !isTrigger(word);
+    isTluTsLsb = isTLUTsLSB(word);
+    isTluTsMsb = isTLUTsMSB(word);
+    if (isTluTsLsb || isTluTsMsb || sof || eof) {
+      isTimestamp = true;
+      timestamp = extractTimestamp(word);
+    } else {
+        isTimestamp = false;
+    }
+    timestamp = extractTimestamp(word);
+    hitWord = !sof & !eof & !isTimestamp;
     piggy = extractPiggy(word) > 0 ? true : false;
     pixIdx = dColIdx2Pix(dcol, pix);
   }
@@ -179,7 +152,7 @@ struct HitInfo {
     } else {
       if (sof) {
         ss << "iniWord = " << std::hex << initialWord << std::dec << " SOF ";
-        ss << "ovflwCnt = " << OvFlwCnt;
+        ss << "ovflwCnt = " << timestamp;
         if (piggy) {
           ss << "   Piggy";
         } else {
@@ -187,20 +160,22 @@ struct HitInfo {
         }
       } else if (eof) {
         ss << "iniWord = " << std::hex << initialWord << std::dec << " EOF ";
-        ss << "ovflwCnt = " << OvFlwCnt;
+        ss << "ovflwCnt = " << timestamp;
         if (piggy) {
           ss << "   Piggy";
         } else {
           ss << "   Base";
         }
+      } else if (isTimestamp) {
+        ss << "TLU timestamp ";
+        if (isTluTsLsb) {
+          ss << "LSB = ";
+        } else {
+          ss << "MSB = ";
+        }
+        ss << std::hex << initialWord;
       } else {
-        ss << "iniWord = " << std::hex << initialWord << std::dec
-           << " triggerNmb = " << triggerNmb;
-        if (piggy) {
-          ss << "   Piggy";
-        } else {
-          ss << "   Base";
-        }
+        ss << "weird word = " << std::hex << initialWord;
       }
     }
     return ss.str();

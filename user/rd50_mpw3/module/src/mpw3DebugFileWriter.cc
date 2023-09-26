@@ -34,12 +34,12 @@ void Mpw3DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
 
   static int evtCnt = 0;
 
-  mOut << "\n\n new event #" << evtCnt++
-       << " received @ FW-TS = " << ev->GetTag("recvTS_FW")
-       << " CPU TS = " << ev->GetTag("recvTS_CPU")
-       << " triggerNmb = " << ev->GetTriggerN() << "\n\n";
+  mOut << "\n\n new event #" << evtCnt++ << "type = " << ev->GetTag("Type")
+       << "\n\n";
 
-  auto block = ev->GetBlock(0);
+  auto blockIdx = ev->GetTag("Type") == "Base" ? 0 : 1;
+
+  auto block = ev->GetBlock(blockIdx);
 
   std::vector<uint32_t> data;
   const auto wordSize = sizeof(uint32_t);
@@ -47,7 +47,7 @@ void Mpw3DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
   if (block.size() <= 2 * wordSize) {
     // no hits in event just trigger word,
     // actually not usable, but don't fail for debug purposes
-    mOut << "empty event\n\n";
+    mOut << "empty\n\n";
   }
 
   data.resize(block.size() / wordSize);
@@ -67,9 +67,26 @@ void Mpw3DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
     mOut << "\nStdEvent conversion failed";
     mOut.flush();
     //    std::cout << "error during event conversion\n";
-    return;
+    //      return;
+  } else {
+    mOut << "\nStdEvent: Ovflw t = " << evstd->GetTimeBegin() * 1e-6 << "us";
   }
-  mOut << "\nStdEvent: t = " << evstd->GetTimeBegin() * 1e-6 << "us";
+
+  eudaq::Configuration cfg;
+  cfg.Set("ts_mode", "TLU");
+  const eudaq::Configuration eu_cfg = cfg;
+  auto eudaq_config = std::make_shared<const eudaq::Configuration>(eu_cfg);
+  evstd = eudaq::StandardEvent::MakeShared();
+  success = eudaq::StdEventConverter::Convert(ev, evstd, eudaq_config);
+  if (evstd == nullptr || !success) {
+    mOut << "\nStdEvent conversion TLU time failed";
+    mOut.flush();
+    //    std::cout << "error during event conversion\n";
+    //      return;
+  } else {
+    mOut << "\nStdEvent: TLU t = " << evstd->GetTimeBegin() * 1e-6 << "us";
+  }
+
   //  auto plane = evstd->GetPlane(0);
   //  for (int i = 0; i < plane.HitPixels(); i++) {
   //    auto col = int(plane.GetX(i));
@@ -77,5 +94,6 @@ void Mpw3DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
   //    auto tot = int(plane.GetPixel(i));
   //    mOut << row << ":" << col << "/" << tot << ", ";
   //  }
+
   mOut.flush();
 }
