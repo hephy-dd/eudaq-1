@@ -124,6 +124,7 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
 
   while (this->IsRunning()) {
     if (this->NextFrame(rBuffer, frame)) {
+      std::cout << "fadc empty? " << fadc.empty() << "\n";
       const auto curPayload = PackageID(frame.back());
       frame.pop_back();
       // UDP package counter is located at last word of UDP packet, than
@@ -153,12 +154,24 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
           std::find_if(itBegin, std::end(frame) - 1, &Unpacker::IsTrailer);
 
       const auto offset = fadc.size();
+      std::cout << "offset = " << offset << "\n";
+      std::cout << "begin = " << *itBegin << " end = " << *itEnd << "\n";
       const auto isTrailer = Unpacker::IsTrailer(*itEnd);
       fadc.resize(offset + std::distance(itBegin, itEnd + isTrailer));
       std::copy(itBegin, itEnd + isTrailer, fadc.begin() + offset);
 
+      for (auto i = fadc.begin(); i != fadc.end(); i++) {
+        std::cout << std::hex << *i << " ";
+      }
+
+      std::cout << "\n new frame:\n";
+      for (auto i = frame.begin(); i != frame.end(); i++) {
+        std::cout << std::hex << *i << " ";
+      }
+
       if (Unpacker::IsMainHeader(fadc.front()) &&
           Unpacker::IsTrailer(fadc.back())) {
+        std::cout << "\npushing\n";
 
         while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
           //                std::this_thread::sleep_for(std::chrono::microseconds(10));
@@ -166,27 +179,37 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
         fadc.clear();
       }
 
-      for (itBegin = std::find_if(itEnd, std::end(frame) - 1,
-                                  &Unpacker::IsMainHeader);
-           itBegin != std::end(frame) - 1;
-           itBegin = std::find_if(itEnd, std::end(frame) - 1,
-                                  &Unpacker::IsMainHeader)) {
-        //        std::cout << "next loop\n";
+      for (itBegin =
+               std::find_if(itEnd, std::end(frame), &Unpacker::IsMainHeader);
+           itBegin != std::end(frame);
+           itBegin =
+               std::find_if(itEnd, std::end(frame), &Unpacker::IsMainHeader)) {
+        std::cout << "\nnext loop\n";
 
-        itEnd =
-            std::find_if(itBegin, std::end(frame) - 1, &Unpacker::IsTrailer);
+        itEnd = std::find_if(itBegin, std::end(frame), &Unpacker::IsTrailer);
         //        std::cout << "got end\n";
         // const auto notSplit = itEnd != std::end(frame);
         const auto isTrailer = Unpacker::IsTrailer(*itEnd);
         fadc.resize(std::distance(itBegin, itEnd) + isTrailer);
         std::copy(itBegin, itEnd + isTrailer, fadc.begin());
         if (Unpacker::IsTrailer(fadc.back())) {
+          for (auto i = itBegin; i != itEnd + isTrailer; i++) {
+            std::cout << std::hex << *i << " ";
+          }
           while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
             //                  std::this_thread::sleep_for(std::chrono::microseconds(10));
           }
           fadc.clear();
+        } else {
+          std::cout << "\nnot trailer\n";
+          for (auto i = fadc.begin(); i != fadc.end(); i++) {
+            std::cout << std::hex << *i << " ";
+          }
+          std::cout << "\n";
         }
       }
+
+      std::cout << "done with curr frame\n";
     }
 
     if (fadc.size() > 5 * FADCBufferSize) {
@@ -194,6 +217,7 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
       //          eudaq::LogMessage("local buffer exceeds max size =>
       //          discarding",
       //                            eudaq::LogMessage::LVL_WARN));
+      std::cout << "clearing buffer\n";
       fadc.clear();
     }
   }
@@ -260,7 +284,7 @@ void Sorter::sortData(Payload_t &frame, FADCPayload_t &buffer,
   auto it = std::copy_if(frame.begin(), frame.end(), buffer.begin(),
                          tester); // it points to last copied element in buffer
   buffer.resize(
-      std::distance(buffer.begin(), it - 1)); // shrink buffer to needed size
+      std::distance(buffer.begin(), it)); // shrink buffer to needed size
 }
 
 bool Sorter::PushData(FADCPayload_t &newData,
