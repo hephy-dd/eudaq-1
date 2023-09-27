@@ -234,7 +234,6 @@ public:
 
 private:
   inline auto Exit() noexcept -> void {
-      std::cout << "merger exit\n";
     m_Receiver.Exit();
 
     for (auto &rUnpacker : m_Unpackers)

@@ -102,6 +102,7 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
   uint64_t triggerOvflw = 0, oldTrgN = 0;
 
   while (mEventBuilderRunning->load(std::memory_order_acquire)) {
+    frame.clear();
     if ((*mEventMerger)(frame)) {
       // simply put data in event, StandardEventConverter got time to extract
       // timestamps and pixel hits

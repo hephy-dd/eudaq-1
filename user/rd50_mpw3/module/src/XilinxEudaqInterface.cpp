@@ -124,7 +124,6 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
 
   while (this->IsRunning()) {
     if (this->NextFrame(rBuffer, frame)) {
-      std::cout << "fadc empty? " << fadc.empty() << "\n";
       const auto curPayload = PackageID(frame.back());
       frame.pop_back();
       // UDP package counter is located at last word of UDP packet, than
@@ -154,24 +153,12 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
           std::find_if(itBegin, std::end(frame) - 1, &Unpacker::IsTrailer);
 
       const auto offset = fadc.size();
-      std::cout << "offset = " << offset << "\n";
-      std::cout << "begin = " << *itBegin << " end = " << *itEnd << "\n";
       const auto isTrailer = Unpacker::IsTrailer(*itEnd);
       fadc.resize(offset + std::distance(itBegin, itEnd + isTrailer));
       std::copy(itBegin, itEnd + isTrailer, fadc.begin() + offset);
 
-      for (auto i = fadc.begin(); i != fadc.end(); i++) {
-        std::cout << std::hex << *i << " ";
-      }
-
-      std::cout << "\n new frame:\n";
-      for (auto i = frame.begin(); i != frame.end(); i++) {
-        std::cout << std::hex << *i << " ";
-      }
-
       if (Unpacker::IsMainHeader(fadc.front()) &&
           Unpacker::IsTrailer(fadc.back())) {
-        std::cout << "\npushing\n";
 
         while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
           //                std::this_thread::sleep_for(std::chrono::microseconds(10));
@@ -184,7 +171,6 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
            itBegin != std::end(frame);
            itBegin =
                std::find_if(itEnd, std::end(frame), &Unpacker::IsMainHeader)) {
-        std::cout << "\nnext loop\n";
 
         itEnd = std::find_if(itBegin, std::end(frame), &Unpacker::IsTrailer);
         //        std::cout << "got end\n";
@@ -193,23 +179,13 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
         fadc.resize(std::distance(itBegin, itEnd) + isTrailer);
         std::copy(itBegin, itEnd + isTrailer, fadc.begin());
         if (Unpacker::IsTrailer(fadc.back())) {
-          for (auto i = itBegin; i != itEnd + isTrailer; i++) {
-            std::cout << std::hex << *i << " ";
-          }
           while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
             //                  std::this_thread::sleep_for(std::chrono::microseconds(10));
           }
           fadc.clear();
         } else {
-          std::cout << "\nnot trailer\n";
-          for (auto i = fadc.begin(); i != fadc.end(); i++) {
-            std::cout << std::hex << *i << " ";
-          }
-          std::cout << "\n";
         }
       }
-
-      std::cout << "done with curr frame\n";
     }
 
     if (fadc.size() > 5 * FADCBufferSize) {
@@ -217,7 +193,6 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
       //          eudaq::LogMessage("local buffer exceeds max size =>
       //          discarding",
       //                            eudaq::LogMessage::LVL_WARN));
-      std::cout << "clearing buffer\n";
       fadc.clear();
     }
   }
@@ -333,6 +308,9 @@ bool Merger::operator()(Event_t &rEvent) noexcept {
   rEvent.m_Data.resize(m_Unpackers.size());
   rEvent.m_Words = 0;
   for (auto iFADC = 0ul; iFADC < m_Unpackers.size(); ++iFADC) {
+    if (m_Unpackers[iFADC].IsEmpty()) {
+      continue;
+    }
     while (!m_Unpackers[iFADC].IsEmpty() &&
            !m_Unpackers[iFADC].PopFADCPayload(rEvent.m_Data[iFADC])) {
       std::this_thread::sleep_for(std::chrono::microseconds(10));

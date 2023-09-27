@@ -20,6 +20,8 @@ struct Event_t {
 
   using Data_t = std::vector<Defs::VMEData_t>;
   std::vector<Data_t> m_Data; /**< SPY data container */
+
+  auto inline clear() {m_Data.clear(); m_Words = 0;}
 };
 
 } // namespace XLNX_CTRL
