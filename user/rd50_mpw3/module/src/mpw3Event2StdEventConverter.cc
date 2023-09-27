@@ -64,7 +64,7 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
   piggyPlane.SetSizeZS(DefsMpw3::dimSensorCol, DefsMpw3::dimSensorRow, 0);
   int64_t tluTsLsb = -1, tluTsMsb = -1, ovflwCntLsb = -1, ovflwCntMsb = -1;
   int sofCnt = 0, eofCnt = 0, hitCnt = 0;
-  std::vector<uint32_t> tsLe, tsTe;
+  std::vector<uint32_t> tsLe;
   double avgTsLe = 0.0, avgTsTe = 0.0;
   int errorCnt = 0;
 
@@ -111,7 +111,6 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
     avgTsLe += hi.tsLe;
     tsLe.push_back(hi.tsLe);
     avgTsTe += hi.tsTe;
-    tsTe.push_back(hi.tsTe);
     hitCnt++;
     if (!hi.hitWord) {
       EUDAQ_DEBUG("weird word, should not occur, check code");
@@ -136,23 +135,18 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
   if (tsMode == TimestampMode::Ovflw && ovflwCntLsb >= 0 && ovflwCntMsb >= 0) {
     // std::cout << "sof =  " << sofWord << " eof = " << eofWord << "\n";
 
-    uint32_t minTsLe = 0, maxTsTe = 0;
+    uint32_t minTsLe = 0, maxTsLe = 0;
     if (tsLe.size() > 0) {
       minTsLe = *std::min_element(tsLe.begin(), tsLe.end());
+      maxTsLe = *std::max_element(tsLe.begin(), tsLe.end());
     } else {
-      std::cout << "no tsLe\n";
-    }
-    if (tsTe.size() > 0) {
-      maxTsTe = *std::max_element(tsTe.begin(), tsTe.end());
-    } else {
-      std::cout << "no tsTe\n";
     }
 
     timeBegin =
         ((ovflwCntLsb + (ovflwCntMsb << 23)) * DefsMpw3::dTPerOvflw + minTsLe) *
         DefsMpw3::lsbTime;
     timeEnd =
-        ((ovflwCntLsb + (ovflwCntMsb << 23)) * DefsMpw3::dTPerOvflw + maxTsTe) *
+        ((ovflwCntLsb + (ovflwCntMsb << 23)) * DefsMpw3::dTPerOvflw + maxTsLe) *
         DefsMpw3::lsbTime;
 
   } else if (tsMode == TimestampMode::TLU && tluTsLsb >= 0 && tluTsMsb >= 0) {
