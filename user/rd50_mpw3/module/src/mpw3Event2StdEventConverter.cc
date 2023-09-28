@@ -182,10 +182,10 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
   }
 
   d2->SetDescription("RD50_MPW3");
-  if (basePlane.NumFrames() > 0) {
+  if (basePlane.HitPixels(0) > 0) {
     d2->AddPlane(basePlane);
   }
-  if (piggyPlane.NumFrames() > 0) {
+  if (piggyPlane.HitPixels(0) > 0) {
     d2->AddPlane(piggyPlane);
   }
 
