@@ -193,6 +193,7 @@ void Unpacker::EventLoop(PayloadBuffer_t &rBuffer) noexcept {
       //          eudaq::LogMessage("local buffer exceeds max size =>
       //          discarding",
       //                            eudaq::LogMessage::LVL_WARN));
+      std::cout << "buffer full, discarding pack\n";
       fadc.clear();
     }
   }
