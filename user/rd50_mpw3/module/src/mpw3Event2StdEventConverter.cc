@@ -31,7 +31,7 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
   bool weArePiggy = false;
   int tShift = 0;
   if (conf != nullptr) {
-    t0 = conf->Get("t0_skip_time", -1.0);
+    t0 = conf->Get("t0_skip_time", -1.0) * 1e6;
     filterZeroWords = conf->Get("filter_zeros", true);
     tShift = conf->Get("mpw3_tshift", 0);
     weArePiggy = conf->Get("is_piggy", false);
@@ -42,7 +42,8 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
   auto ev = std::dynamic_pointer_cast<const eudaq::RawEvent>(d1);
   uint64_t timeBegin, timeEnd;
 
-  auto blockIdx = ev->GetTag("Type") == "Base" ? 0 : 1;
+  auto type = ev->GetTag("Type", "Base");
+  auto blockIdx = type == "Base" ? 0 : 1;
   // block[0] contains base data
   // block[1] piggy data
   std::vector<uint32_t> rawdata;
@@ -155,21 +156,20 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
   } else {
     EUDAQ_WARN("Not possible to generate timestamp");
     // std::cout << "sofs " << sofCnt << " eofs " << eofCnt << "\n";
-
+    //    std::cout << "failed\n";
     return false;
   }
 
   if (t0 < 0.0) {
-    if (!weArePiggy) {
+    if (!weArePiggy && type == "Base") {
       foundT0Base = true;
-    } else {
+    } else if (type == "Piggy") {
       foundT0Piggy = true;
     }
   } else if (timeBegin < uint64_t(t0)) {
-    if (!weArePiggy) {
-
+    if (!weArePiggy && type == "Base") {
       foundT0Base = true;
-    } else {
+    } else if (type == "Piggy") {
       foundT0Piggy = true;
     }
   }
@@ -192,6 +192,15 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
   // tShift configured in microseconds
   timeBegin += tShift * 1e6;
   timeEnd += tShift * 1e6;
+
+  //  std::cout << "generated event with t = " << timeBegin / 1e6 << "us with ";
+  //  if (basePlane.HitPixels(0) > 0) {
+  //    std::cout << basePlane.HitPixels(0) << " base ";
+  //  }
+  //  if (piggyPlane.HitPixels(0) > 0) {
+  //    std::cout << piggyPlane.HitPixels(0) << " piggy ";
+  //  }
+  //  std::cout << "\n";
 
   d2->SetTimeBegin(timeBegin);
   d2->SetTimeEnd(timeEnd);
