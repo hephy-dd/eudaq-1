@@ -61,6 +61,7 @@ void Mpw3DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
     DefsMpw3::HitInfo hi(i);
     mOut << std::hex << i << " " << std::dec << hi.toStr() << "\n";
   }
+  double ovflwT = 0, tluT = 0;
   auto evstd = eudaq::StandardEvent::MakeShared();
   auto success = eudaq::StdEventConverter::Convert(ev, evstd, nullptr);
   if (evstd == nullptr || !success) {
@@ -69,7 +70,8 @@ void Mpw3DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
     //    std::cout << "error during event conversion\n";
     //      return;
   } else {
-    mOut << "\nStdEvent: Ovflw t = " << evstd->GetTimeBegin() * 1e-6 << "us";
+    ovflwT = evstd->GetTimeBegin() * 1e-6;
+    mOut << "\nStdEvent: Ovflw t = " << ovflwT << "us";
   }
 
   eudaq::Configuration cfg;
@@ -84,8 +86,10 @@ void Mpw3DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
     //    std::cout << "error during event conversion\n";
     //      return;
   } else {
-    mOut << "\nStdEvent: TLU t = " << evstd->GetTimeBegin() * 1e-6 << "us";
+    tluT = evstd->GetTimeBegin() * 1e-6;
+    mOut << "\nStdEvent: TLU t = " << tluT << "us";
   }
+  mOut << "\ndiff = " << ovflwT - tluT << "us";
 
   //  auto plane = evstd->GetPlane(0);
   //  for (int i = 0; i < plane.HitPixels(); i++) {
