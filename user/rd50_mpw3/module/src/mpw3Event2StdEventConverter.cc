@@ -137,6 +137,7 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
     // std::cout << "sof =  " << sofWord << " eof = " << eofWord << "\n";
 
     uint32_t minTsLe = 0, maxTsLe = 0;
+    //    tsLe.clear();
     if (tsLe.size() > 0) {
       minTsLe = *std::min_element(tsLe.begin(), tsLe.end());
       maxTsLe = *std::max_element(tsLe.begin(), tsLe.end());
@@ -161,11 +162,8 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
   }
 
   if (t0 < 0.0) {
-    if (!weArePiggy && type == "Base") {
-      foundT0Base = true;
-    } else if (type == "Piggy") {
-      foundT0Piggy = true;
-    }
+    // don't skip any time, so just assume we "found" T0 for both
+    foundT0Base = foundT0Piggy = true;
   } else if (timeBegin < uint64_t(t0)) {
     if (!weArePiggy && type == "Base") {
       foundT0Base = true;
