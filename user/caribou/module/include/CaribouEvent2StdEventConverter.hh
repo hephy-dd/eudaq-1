@@ -137,7 +137,6 @@ namespace eudaq {
     static bool new_ts2_;
     static size_t t0_seen_;
   };
-<<<<<<< HEAD
 
   class Mpw3RawEvent2StdEventConverter : public eudaq::StdEventConverter {
   public:
@@ -147,11 +146,9 @@ namespace eudaq {
         eudaq::cstr2hash("CaribouRD50_MPW3Event");
   };
 
-=======
   class H2MEvent2StdEventConverter: public eudaq::StdEventConverter{
   public:
     bool Converting(eudaq::EventSPC d1, eudaq::StandardEventSP d2, eudaq::ConfigurationSPC conf) const override;
     static const uint32_t m_id_factory = eudaq::cstr2hash("CaribouH2MEvent");
   };
->>>>>>> master
 } // namespace eudaq
