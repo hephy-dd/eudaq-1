@@ -24,7 +24,11 @@ static const uint32_t sof = 0x1bc;
 static const uint32_t eof = 0x17c;
 static const uint32_t idle = 0x13c;
 
-static inline auto isTjMonoTS(const uint32_t word, const int data_id) {
+static inline auto isTjMonoTsMsb(const uint32_t word, const int data_id) {
+  return (word & 0xFC000000) == (0x0C000000 | data_id << 28);
+}
+
+static inline auto isTjMonoTsLsb(const uint32_t word, const int data_id) {
   return (word & 0xFC000000) == (0x08000000 | data_id << 28);
 }
 
@@ -58,8 +62,9 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
 
   eudaq::StandardPlane plane(plane_id, "Event", "Monopix2");
   plane.SetSizeZS(dimSensorCol, dimSensorRow, 0);
-
-  int le = -1, te = -1, row = -1, col = -1, tot, tjTS = -1, processingStep = 0,
+  
+  unsigned long long int  tjTS = -1;
+  int le = -1, te = -1, row = -1, col = -1, tot, processingStep = 0,
       errorCnt = 0, actualHits = 0, triggerNmb = -1, triggerTs = -1;
   bool insideFrame = false;
   bool multipleTrgs = false;
@@ -81,8 +86,11 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
     wordCnt++;
     //std::cout << "Current data word: 0x" << std::hex << word << std::endl;
 
-    if (Mpx2Ids::isTjMonoTS(word, data_id)) { // we handle a timestamp word
-      tjTS = word & 0x7FFFFFF;
+    if (Mpx2Ids::isTjMonoTsMsb(word, data_id)) { // we handle a timestamp word
+      tjTS = word & 0x3FFFFFF;
+      tjTS = tjTS << 26;
+    } else if (Mpx2Ids::isTjMonoTsLsb(word, data_id)) { // we handle a timestamp word
+      tjTS = word & 0x3FFFFFF | tjTS;
     } else if (Mpx2Ids::isTjMonoData(word, data_id)) { // this is a data word
       std::vector<uint32_t> slices = {
           (word & 0x7FC0000) >> 18, (word & 0x003FE00) >> 9,
@@ -102,7 +110,7 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
         } else if (d == Mpx2Ids::eof) { // EOF
           if (!insideFrame) {
             errorCnt++;
-            EUDAQ_WARN("EOF before SOF");
+            // EUDAQ_WARN("EOF before SOF");
           } else {
             // frame closed properly, add buffered hits to plane
 
@@ -192,7 +200,7 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
       triggerTs = (word >> 16) & 0x7FFF;
 
     } else {
-      EUDAQ_WARN("weird data 2 word = " + std::to_string(word) + " ID: " + std::to_string(word >> 28));
+      EUDAQ_WARN("weird data word = " + std::to_string(word) + " ID: " + std::to_string(word >> 28));
     }
   }
 
