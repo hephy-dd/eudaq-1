@@ -24,12 +24,12 @@ static const uint32_t sof = 0x1bc;
 static const uint32_t eof = 0x17c;
 static const uint32_t idle = 0x13c;
 
-static inline auto isTjMonoTS(const uint32_t word) {
-
-  return (word & 0xF8000000) == 0x48000000;
+static inline auto isTjMonoTS(const uint32_t word, const int data_id) {
+  return (word & 0xFC000000) == (0x08000000 | data_id << 28);
 }
-static inline auto isTjMonoData(const uint32_t word) {
-  return (word & 0xF8000000) == 0x40000000;
+
+static inline auto isTjMonoData(const uint32_t word, const int data_id) {
+  return (word & 0xF8000000) == data_id << 28;
 }
 
 static inline auto isTluTrigger(const uint32_t word) {
@@ -43,6 +43,11 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
   auto ev = std::dynamic_pointer_cast<const eudaq::RawEvent>(d1);
 
   std::vector<uint32_t> rawdata;
+  int data_id = 4, plane_id = 0;
+  if (conf != nullptr) {
+    data_id = conf->Get("data_id", 4);
+    plane_id = conf->Get("plane_id", 0);
+  }
 
   const auto block = ev->GetBlock(0);
   constexpr auto sizeWord = sizeof(uint32_t);
@@ -51,7 +56,7 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
   memcpy(rawdata.data(), block.data(),
          rawdata.size() * sizeWord); // convert bytes to words (uint32's)
 
-  eudaq::StandardPlane plane(0, "Event", "Monopix2");
+  eudaq::StandardPlane plane(plane_id, "Event", "Monopix2");
   plane.SetSizeZS(dimSensorCol, dimSensorRow, 0);
 
   int le = -1, te = -1, row = -1, col = -1, tot, tjTS = -1, processingStep = 0,
@@ -74,10 +79,11 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
   std::vector<Hit> hitBuff;
   for (const auto &word : rawdata) {
     wordCnt++;
+    //std::cout << "Current data word: 0x" << std::hex << word << std::endl;
 
-    if (Mpx2Ids::isTjMonoTS(word)) { // we handle a timestamp word
+    if (Mpx2Ids::isTjMonoTS(word, data_id)) { // we handle a timestamp word
       tjTS = word & 0x7FFFFFF;
-    } else if (Mpx2Ids::isTjMonoData(word)) { // this is a data word
+    } else if (Mpx2Ids::isTjMonoData(word, data_id)) { // this is a data word
       std::vector<uint32_t> slices = {
           (word & 0x7FC0000) >> 18, (word & 0x003FE00) >> 9,
           word & 0x00001FF}; // each raw data word can be split in 3 distinct
@@ -186,7 +192,7 @@ bool Monopix2RawEvent2StdEventConverter::Converting(
       triggerTs = (word >> 16) & 0x7FFF;
 
     } else {
-      EUDAQ_WARN("weird data word = " + std::to_string(word));
+      EUDAQ_WARN("weird data 2 word = " + std::to_string(word) + " ID: " + std::to_string(word >> 28));
     }
   }
 
