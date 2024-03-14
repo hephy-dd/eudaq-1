@@ -1,5 +1,7 @@
 # Modules for the RD50_MPW3 chip, in particular the "fast-data-path"
 
+The following modules can be used for both the RD50-MPW3 as well as the RD50-MPW4.
+
 ## Building
 
 By default, the CMake flag is deactivated `USER_MPW3_BUILD`. When you activate it with the CMake parameter `-D USER_MPW3_BUILD=ON`, several modules will be built:
@@ -31,11 +33,11 @@ sudo ip link set <iface> mtu 8196
 
 ### Mpw3Raw2StdEventConverter
 
-Mpw3Raw2StdEventConverter converts the raw "RD50_Mpw3Event" from the DC to an EUDAQ standard event. Data from the base and piggy will be placed into two different planes.
+Mpw3Raw2StdEventConverter converts the raw "RD50_MPWxEvent" from the DC to an EUDAQ standard event. Data from the base and piggy will be placed into two different planes.
 
 #### Usage within Corryvreckan
 
-To access the Base plane, one should use the following name in the Corryvreckan geometry: "RD50_MPW3_base_0". For the Piggy, it is "RD50_MPW3_piggy_0".
+To access the Base plane, one should use the following name in the Corryvreckan geometry: "RD50_MPWx_base_0". For the Piggy, it is "RD50_MPWx_piggy_0".
 
 #### Parameters
 
@@ -43,3 +45,4 @@ The following parameters can be forwarded to the EventConverter:
 
 - "filter_zeros": Do not process and interpret words which are plain "0". Such words would be interpreted as pixel 00:00 got hit with TS-LE = TS-TE = 0, defaults to "true".
 - "t0_skip_time": All events are skipped (converter returns false to indicate an invalid event) until an event with a timestamp < the specified time in [$\mu s$] is encountered. Can be used to avoid passing events which have been received before the T0 signal of the TLU was raised, which would contain uninitialized timestamps and thereby not work properly with the EUDAQ2EventLoader module of Corryvreckan. Defaults to "-1.0", which means not skipping any events.
+- "lsb_time": Specify the time one timestamp LSB corresponds to. Must be given in [ps]. Should be set to _25000_ for MPW4 (25ns time binning) and _50000_ for MPW3 (50ns time binning). Defaults to _50000_ (MPW3).

@@ -6,7 +6,7 @@ class Mpw3Raw2StdEventConverter : public eudaq::StdEventConverter {
 public:
   bool Converting(eudaq::EventSPC d1, eudaq::StdEventSP d2,
                   eudaq::ConfigSPC conf) const override;
-  static const uint32_t m_id_factory = eudaq::cstr2hash("RD50_Mpw3Event");
+  static const uint32_t m_id_factory = eudaq::cstr2hash("RD50_MPWxEvent");
   static bool foundT0Base, foundT0Piggy;
 };
 
@@ -30,13 +30,14 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
   bool filterZeroWords = true;
   bool weArePiggy = false;
   int tShift = 0;
+  uint32_t lsbTime = 50000;
   if (conf != nullptr) {
     t0 = conf->Get("t0_skip_time", -1.0) * 1e6;
     filterZeroWords = conf->Get("filter_zeros", true);
-    tShift = conf->Get("mpw3_tshift", 0);
     weArePiggy = conf->Get("is_piggy", false);
     tsMode = conf->Get("ts_mode", "Ofvlw") == "TLU" ? TimestampMode::TLU
                                                     : TimestampMode::Ovflw;
+    lsbTime = conf->Get("lsb_time", 50000);
   }
 
   auto ev = std::dynamic_pointer_cast<const eudaq::RawEvent>(d1);
@@ -59,8 +60,8 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
   rawdata.resize(block.size() / sizeWord);
   memcpy(rawdata.data(), block.data(), rawdata.size() * sizeWord);
 
-  eudaq::StandardPlane basePlane(0, "Base", "RD50_MPW3_base");
-  eudaq::StandardPlane piggyPlane(0, "Piggy", "RD50_MPW3_piggy");
+  eudaq::StandardPlane basePlane(0, "Base", "RD50_MPWx_base");
+  eudaq::StandardPlane piggyPlane(0, "Piggy", "RD50_MPWx_piggy");
   basePlane.SetSizeZS(DefsMpw3::dimSensorCol, DefsMpw3::dimSensorRow, 0);
   piggyPlane.SetSizeZS(DefsMpw3::dimSensorCol, DefsMpw3::dimSensorRow, 0);
   int64_t tluTsLsb = -1, tluTsMsb = -1, ovflwCntLsb = -1, ovflwCntMsb = -1;
@@ -146,13 +147,13 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
 
     timeBegin =
         ((ovflwCntLsb + (ovflwCntMsb << 23)) * DefsMpw3::dTPerOvflw + minTsLe) *
-        DefsMpw3::lsbTime;
+        lsbTime;
     timeEnd =
         ((ovflwCntLsb + (ovflwCntMsb << 23)) * DefsMpw3::dTPerOvflw + maxTsLe) *
-        DefsMpw3::lsbTime;
+        lsbTime;
 
   } else if (tsMode == TimestampMode::TLU && tluTsLsb >= 0 && tluTsMsb >= 0) {
-    timeEnd = timeBegin = (tluTsLsb + (tluTsMsb << 23)) * DefsMpw3::lsbTime;
+    timeEnd = timeBegin = (tluTsLsb + (tluTsMsb << 23)) * lsbTime;
 
   } else {
     EUDAQ_WARN("Not possible to generate timestamp");
@@ -179,17 +180,13 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
     return false;
   }
 
-  d2->SetDescription("RD50_MPW3");
+  d2->SetDescription("RD50_MPWx");
   if (basePlane.HitPixels(0) > 0) {
     d2->AddPlane(basePlane);
   }
   if (piggyPlane.HitPixels(0) > 0) {
     d2->AddPlane(piggyPlane);
   }
-
-  // tShift configured in microseconds
-  timeBegin += tShift * 1e6;
-  timeEnd += tShift * 1e6;
 
   //  std::cout << "generated event with t = " << timeBegin / 1e6 << "us with ";
   //  if (basePlane.HitPixels(0) > 0) {

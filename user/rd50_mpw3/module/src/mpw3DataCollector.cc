@@ -108,7 +108,7 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
       // timestamps and pixel hits
 
       for (int i = 0; i < frame.m_Data.size(); i++) {
-        auto euEvent = eudaq::Event::MakeShared("RD50_Mpw3Event");
+        auto euEvent = eudaq::Event::MakeShared("RD50_MPWxEvent");
         if (frame.m_Data[i].empty()) {
           continue;
         }
