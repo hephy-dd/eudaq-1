@@ -129,9 +129,10 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
   }
   /*
    * timestamp for begin / end is being calculated by
-   * begin: ovflw Cnt from SOF and minimum TS-LE from all hits in the current
-   * frame end: ovflw Cnt from EOF  and maximum TS-TE from all hits in the
-   * current frame
+   * begin: combined ovflw Cnt from SOF and EOF and minimum TS-LE from all hits
+   * in the current frame
+   * end: combined ovflw Cnt from  and EOF and maximum
+   * TS-TE from all hits in the current frame
    */
 
   if (tsMode == TimestampMode::Ovflw && ovflwCntLsb >= 0 && ovflwCntMsb >= 0) {
