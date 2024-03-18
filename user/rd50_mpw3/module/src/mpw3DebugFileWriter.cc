@@ -59,11 +59,17 @@ void Mpw3DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
   for (auto i : data) {
     wordCnt++;
     DefsMpw3::HitInfo hi(i);
-    mOut << std::hex << i << " " << std::dec << hi.toStr() << "\n";
+    mOut << std::hex << i << " " << std::dec << hi.toStr() << "\n"
+         << std::setprecision(10);
   }
   double ovflwT = 0, tluT = 0;
+  eudaq::Configuration cfg;
+  cfg.Set("ts_mode", "Ovflw");
+  cfg.Set("lsb_time", 25000);
+  //  const eudaq::Configuration eu_cfg = cfg;
+  auto eudaq_config = std::make_shared<const eudaq::Configuration>(cfg);
   auto evstd = eudaq::StandardEvent::MakeShared();
-  auto success = eudaq::StdEventConverter::Convert(ev, evstd, nullptr);
+  auto success = eudaq::StdEventConverter::Convert(ev, evstd, eudaq_config);
   if (evstd == nullptr || !success) {
     mOut << "\nStdEvent conversion failed";
     mOut.flush();
@@ -74,10 +80,10 @@ void Mpw3DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
     mOut << "\nStdEvent: Ovflw t = " << ovflwT << "us";
   }
 
-  eudaq::Configuration cfg;
   cfg.Set("ts_mode", "TLU");
-  const eudaq::Configuration eu_cfg = cfg;
-  auto eudaq_config = std::make_shared<const eudaq::Configuration>(eu_cfg);
+  cfg.Set("lsb_time", 25000);
+  //  const eudaq::Configuration eu_cfg = cfg;
+  eudaq_config = std::make_shared<const eudaq::Configuration>(cfg);
   evstd = eudaq::StandardEvent::MakeShared();
   success = eudaq::StdEventConverter::Convert(ev, evstd, eudaq_config);
   if (evstd == nullptr || !success) {
