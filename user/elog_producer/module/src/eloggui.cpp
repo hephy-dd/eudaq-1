@@ -72,6 +72,7 @@ void ElogGui::DoInitialise(const eudaq::ConfigurationSPC &ini) {
 void ElogGui::DoConfigure(const eudaq::ConfigurationSPC &conf) {
   mStartCmd = conf->Get("start_cmd", "").c_str();
   mFiles2Log = QString(conf->Get("files2log", "").c_str()).split(',');
+  mFiles2Log << QString(conf->Name().c_str());
 }
 
 void ElogGui::DoStartRun(int runNmb) {
@@ -81,7 +82,7 @@ void ElogGui::DoStartRun(int runNmb) {
   qDebug() << mStartCmd;
   /*
    * execute an additional command (eg a shell script) before starting the run
-   * useful to copy some remote configurationfiles from different computers to
+   * useful to copy some remote configuration files from different computers to
    * the local one for attaching them to the Elog entry
    */
   if (!mStartCmd.isEmpty()) {
