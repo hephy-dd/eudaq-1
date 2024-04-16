@@ -2,9 +2,9 @@
 #include "mpw3_datacollector.h"
 
 namespace {
-auto dummy0 = eudaq::Factory<eudaq::DataCollector>::Register<
-    Mpw3FastDataCollector, const std::string &, const std::string &>(
-    Mpw3FastDataCollector::m_id_factory);
+  auto dummy0 = eudaq::Factory<eudaq::DataCollector>::Register<
+      Mpw3FastDataCollector, const std::string &, const std::string &>(
+      Mpw3FastDataCollector::m_id_factory);
 }
 
 Mpw3FastDataCollector::Mpw3FastDataCollector(const std::string &name,

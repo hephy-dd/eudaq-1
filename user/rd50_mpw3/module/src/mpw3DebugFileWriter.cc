@@ -16,12 +16,12 @@ private:
 };
 
 namespace {
-auto dummy0 = eudaq::Factory<eudaq::FileWriter>::Register<Mpw3DbgFileWriter,
-                                                          std::string &>(
-    eudaq::cstr2hash("mpw3txt"));
-auto dummy1 = eudaq::Factory<eudaq::FileWriter>::Register<Mpw3DbgFileWriter,
-                                                          std::string &&>(
-    eudaq::cstr2hash("mpw3txt"));
+  auto dummy0 = eudaq::Factory<eudaq::FileWriter>::Register<Mpw3DbgFileWriter,
+                                                            std::string &>(
+      eudaq::cstr2hash("mpw3txt"));
+  auto dummy1 = eudaq::Factory<eudaq::FileWriter>::Register<Mpw3DbgFileWriter,
+                                                            std::string &&>(
+      eudaq::cstr2hash("mpw3txt"));
 } // namespace
 
 Mpw3DbgFileWriter::Mpw3DbgFileWriter(const std::string &patt) {
