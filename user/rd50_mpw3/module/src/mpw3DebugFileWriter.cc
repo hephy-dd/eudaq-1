@@ -35,7 +35,7 @@ void Mpw3DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
   static int evtCnt = 0;
 
   mOut << "\n\n new event #" << evtCnt++ << "type = " << ev->GetTag("Type")
-       << "\n\n";
+       << " payloadId = " << ev->GetTag("payloadID") << "\n\n";
 
   auto blockIdx = ev->GetTag("Type") == "Base" ? 0 : 1;
 

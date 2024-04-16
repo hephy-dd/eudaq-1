@@ -60,7 +60,7 @@ namespace SVD {
             data.pop_back();
             data.pop_back(); // UDP timestamp LSB, no one needs that anymore,
                              // legacy first sync approach, sucked heavily
-            data.pop_back();        // UDP timestamp MSB
+            data.pop_back(); // UDP timestamp MSB
             data.push_back(packId); // forward package ID
 
             auto iRet = 0;
@@ -123,8 +123,9 @@ namespace SVD {
         auto lastPayload = 0;
 
         while (this->IsRunning()) {
+          Defs::VMEData_t curPayload = 0;
           if (this->NextFrame(rBuffer, frame)) {
-            const auto curPayload = PackageID(frame.back());
+            curPayload = PackageID(frame.back());
             frame.pop_back();
             // UDP package counter is located at last word of UDP packet, than
             // there is a 64 bit ovflw counter based on 50 ns added by the FPGA
@@ -161,6 +162,9 @@ namespace SVD {
             if (Unpacker::IsMainHeader(fadc.front()) &&
                 Unpacker::IsTrailer(fadc.back())) {
 
+              fadc.push_back(curPayload); // forward UDP package ID to next
+                                          // stage
+
               while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
                 //                std::this_thread::sleep_for(std::chrono::microseconds(10));
               }
@@ -181,6 +185,10 @@ namespace SVD {
               fadc.resize(std::distance(itBegin, itEnd) + isTrailer);
               std::copy(itBegin, itEnd + isTrailer, fadc.begin());
               if (Unpacker::IsTrailer(fadc.back())) {
+
+                fadc.push_back(
+                    curPayload); // forward UDP package ID to next stage
+
                 while (!this->PushFADCFrame(fadc) && this->IsRunning()) {
                   //                  std::this_thread::sleep_for(std::chrono::microseconds(10));
                 }
@@ -321,6 +329,12 @@ namespace SVD {
                !m_Unpackers[iFADC].PopFADCPayload(rEvent.m_Data[iFADC])) {
           std::this_thread::sleep_for(std::chrono::microseconds(10));
         }
+        auto payloadId =
+            rEvent.m_Data[iFADC]
+                .back(); // Unpacker put UDP pack ID at end of FADC frame ->
+                         // extract it and set it as eventNr
+        rEvent.m_Data[iFADC].pop_back();
+        rEvent.m_EventNr = payloadId;
         rEvent.m_Words += rEvent.m_Data[iFADC].size();
       }
       return true;

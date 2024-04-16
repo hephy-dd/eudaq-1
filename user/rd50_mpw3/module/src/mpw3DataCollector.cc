@@ -114,7 +114,7 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
         }
         euEvent->AddBlock(i, frame.m_Data[i]);
         euEvent->SetTag("frameNmb", nEuEvent);
-        euEvent->SetEventN(frame.m_EventNr);
+        euEvent->SetTag("payloadID", frame.m_EventNr);
         auto type = i == 0 ? "Base" : "Piggy";
         euEvent->SetTag("Type", type);
         WriteEvent(euEvent);
