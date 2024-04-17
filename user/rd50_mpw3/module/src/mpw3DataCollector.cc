@@ -2,9 +2,9 @@
 #include "mpw3_datacollector.h"
 
 namespace {
-auto dummy0 = eudaq::Factory<eudaq::DataCollector>::Register<
-    Mpw3FastDataCollector, const std::string &, const std::string &>(
-    Mpw3FastDataCollector::m_id_factory);
+  auto dummy0 = eudaq::Factory<eudaq::DataCollector>::Register<
+      Mpw3FastDataCollector, const std::string &, const std::string &>(
+      Mpw3FastDataCollector::m_id_factory);
 }
 
 Mpw3FastDataCollector::Mpw3FastDataCollector(const std::string &name,
@@ -114,7 +114,7 @@ void Mpw3FastDataCollector::WriteEudaqEventLoop() {
         }
         euEvent->AddBlock(i, frame.m_Data[i]);
         euEvent->SetTag("frameNmb", nEuEvent);
-        euEvent->SetEventN(frame.m_EventNr);
+        euEvent->SetTag("payloadID", frame.m_EventNr);
         auto type = i == 0 ? "Base" : "Piggy";
         euEvent->SetTag("Type", type);
         WriteEvent(euEvent);

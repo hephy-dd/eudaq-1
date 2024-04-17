@@ -14,8 +14,8 @@ bool Mpw3Raw2StdEventConverter::foundT0Base = false;
 bool Mpw3Raw2StdEventConverter::foundT0Piggy = false;
 
 namespace {
-auto dummy0 = eudaq::Factory<eudaq::StdEventConverter>::Register<
-    Mpw3Raw2StdEventConverter>(Mpw3Raw2StdEventConverter::m_id_factory);
+  auto dummy0 = eudaq::Factory<eudaq::StdEventConverter>::Register<
+      Mpw3Raw2StdEventConverter>(Mpw3Raw2StdEventConverter::m_id_factory);
 }
 
 bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,

@@ -16,12 +16,12 @@ private:
 };
 
 namespace {
-auto dummy0 = eudaq::Factory<eudaq::FileWriter>::Register<Mpw3DbgFileWriter,
-                                                          std::string &>(
-    eudaq::cstr2hash("mpw3txt"));
-auto dummy1 = eudaq::Factory<eudaq::FileWriter>::Register<Mpw3DbgFileWriter,
-                                                          std::string &&>(
-    eudaq::cstr2hash("mpw3txt"));
+  auto dummy0 = eudaq::Factory<eudaq::FileWriter>::Register<Mpw3DbgFileWriter,
+                                                            std::string &>(
+      eudaq::cstr2hash("mpw3txt"));
+  auto dummy1 = eudaq::Factory<eudaq::FileWriter>::Register<Mpw3DbgFileWriter,
+                                                            std::string &&>(
+      eudaq::cstr2hash("mpw3txt"));
 } // namespace
 
 Mpw3DbgFileWriter::Mpw3DbgFileWriter(const std::string &patt) {
@@ -35,7 +35,7 @@ void Mpw3DbgFileWriter::WriteEvent(eudaq::EventSPC ev) {
   static int evtCnt = 0;
 
   mOut << "\n\n new event #" << evtCnt++ << "type = " << ev->GetTag("Type")
-       << "\n\n";
+       << " payloadId = " << ev->GetTag("payloadID") << "\n\n";
 
   auto blockIdx = ev->GetTag("Type") == "Base" ? 0 : 1;
 

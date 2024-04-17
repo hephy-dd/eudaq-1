@@ -16,12 +16,12 @@ private:
 };
 
 namespace {
-auto dummy0 = eudaq::Factory<eudaq::FileWriter>::Register<TluDbgFileWriter,
-                                                          std::string &>(
-    eudaq::cstr2hash("tlutxt"));
-auto dummy1 = eudaq::Factory<eudaq::FileWriter>::Register<TluDbgFileWriter,
-                                                          std::string &&>(
-    eudaq::cstr2hash("tlutxt"));
+  auto dummy0 = eudaq::Factory<eudaq::FileWriter>::Register<TluDbgFileWriter,
+                                                            std::string &>(
+      eudaq::cstr2hash("tlutxt"));
+  auto dummy1 = eudaq::Factory<eudaq::FileWriter>::Register<TluDbgFileWriter,
+                                                            std::string &&>(
+      eudaq::cstr2hash("tlutxt"));
 } // namespace
 
 TluDbgFileWriter::TluDbgFileWriter(const std::string &patt) {
