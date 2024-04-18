@@ -72,14 +72,16 @@ void ElogGui::DoInitialise(const eudaq::ConfigurationSPC &ini) {
 void ElogGui::DoConfigure(const eudaq::ConfigurationSPC &conf) {
   mStartCmd = conf->Get("start_cmd", "").c_str();
   mFiles2Log = QString(conf->Get("files2log", "").c_str()).split(',');
-  mFiles2Log << QString(conf->Name().c_str());
+  auto configFile =
+      QString(conf->Name().c_str())
+          .section("/", -1, -1); // get just filename without path, therefore
+                                 // config file has to be in pwd though...
+  mFiles2Log << configFile;
 }
 
 void ElogGui::DoStartRun(int runNmb) {
   mStartTime = QDateTime::currentDateTime();
   mCurrRunN = runNmb;
-
-  qDebug() << mStartCmd;
   /*
    * execute an additional command (eg a shell script) before starting the run
    * useful to copy some remote configuration files from different computers to
