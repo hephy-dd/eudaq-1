@@ -41,6 +41,10 @@ class KeithleyPS:
     def setVoltage(self, voltage, maxCurr=5e-6):
         self._scope.write(f':SENS:CURR:PROT {maxCurr}')
         self._scope.write(f':SOUR:VOLT:LEV {voltage}')
+        
+    def readback(self):
+        return self._scope.query_ascii_values(f':READ?')
+        
 
     def availableRessources(self):
         return self._rm.list_resources()
@@ -54,6 +58,9 @@ class KeithleyPSProducer(pyeudaq.Producer):
         self._keithley = None
         self._maxCurrent = None
         self._voltage = .0
+        self._logfile = ''
+        self._logInterval = 10
+        
 
     @exception_handler
     def DoInitialise(self):
@@ -72,6 +79,15 @@ class KeithleyPSProducer(pyeudaq.Producer):
 
         parity = ini.Get('parity', 'none')
         parity = parity_options[parity]
+        self._logfile = ini.Get('file', '')
+        self._logInterval = int(ini.Get('log_interval', '10'))
+        
+        if self._logfile:
+            self._logfile = open(self._logfile, 'a')
+        # self._logfile = open('test', 'w')
+
+            
+        
 
         self._keithley = KeithleyPS(resource=rsrc, baud=baud, stop_bit=stops, parity=parity)
         # print('available rsrcs', self._keithley.availableRessources())
@@ -89,12 +105,14 @@ class KeithleyPSProducer(pyeudaq.Producer):
     def DoStartRun(self):
         EUDAQ_INFO('DoStartRun')
         self.is_running = 1
+        if self._logfile:
+             self._logfile.write('\n\nNew run\n\n')
 
     @exception_handler
     def DoStopRun(self):
         EUDAQ_INFO('DoStopRun')
         self.is_running = 0
-        self._keithley.turnOff()
+        #self._keithley.turnOff()
 
     @exception_handler
     def DoReset(self):
@@ -105,7 +123,13 @@ class KeithleyPSProducer(pyeudaq.Producer):
     def RunLoop(self):
         EUDAQ_INFO("Start of RunLoop in ExamplePyProducer")
         while self.is_running:
-            time.sleep(1)
+            #ev = pyeudaq.Event("RawEvent", "sub_name")
+            if self._logfile:
+                rb = self._keithley.readback()               
+                self._logfile.write(f'{rb[0]}, {rb[1]}\n')
+                self._logfile.flush()
+        
+            time.sleep(self._logInterval)
         EUDAQ_INFO("End of RunLoop in ExamplePyProducer")
 
 
