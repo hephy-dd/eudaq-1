@@ -7,11 +7,18 @@ public:
   bool Converting(eudaq::EventSPC d1, eudaq::StdEventSP d2,
                   eudaq::ConfigSPC conf) const override;
   static const uint32_t m_id_factory = eudaq::cstr2hash("RD50_MPWxEvent");
-  static bool foundT0Base, foundT0Piggy;
+  static bool foundT0Base, foundT0Piggy, parsedCalibration;
+  static double calibMap[DefsMpw3::dimSensorCol * DefsMpw3::dimSensorRow * 2];
+
+private:
+  int inline indexCalibMap(int row, int col) const;
 };
 
 bool Mpw3Raw2StdEventConverter::foundT0Base = false;
 bool Mpw3Raw2StdEventConverter::foundT0Piggy = false;
+bool Mpw3Raw2StdEventConverter::parsedCalibration = false;
+double Mpw3Raw2StdEventConverter::calibMap[DefsMpw3::dimSensorCol *
+                                           DefsMpw3::dimSensorRow * 2] = {0.0};
 
 namespace {
   auto dummy0 = eudaq::Factory<eudaq::StdEventConverter>::Register<
@@ -31,6 +38,32 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
   bool weArePiggy = false;
   int tShift = 0;
   uint32_t lsbTime = 50000;
+
+  auto parseCalibration = [&](const std::string calibFile) {
+    std::string line;
+    std::ifstream in(calibFile);
+    if (!in.is_open()) {
+      return false;
+    }
+    while (std::getline(in, line)) {
+      if (line.front() == '#') {
+        continue;
+      }
+      std::istringstream iss(line);
+      int row, col;
+      double k, d;
+      iss >> row >> col >> k >> d;
+      if (row > DefsMpw3::dimSensorRow || col > DefsMpw3::dimSensorCol) {
+        EUDAQ_ERROR("invalid pixel specifier in calib file");
+        return false;
+      }
+      int index = indexCalibMap(row, col);
+      calibMap[index] = k;
+      calibMap[index + 1] = d;
+    }
+    return true;
+  };
+
   if (conf != nullptr) {
     t0 = conf->Get("t0_skip_time", -1.0) * 1e6;
     filterZeroWords = conf->Get("filter_zeros", true);
@@ -38,6 +71,13 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
     tsMode = conf->Get("ts_mode", "Ofvlw") == "TLU" ? TimestampMode::TLU
                                                     : TimestampMode::Ovflw;
     lsbTime = conf->Get("lsb_time", 50000);
+
+    if (!parsedCalibration) {
+
+      if (parseCalibration(conf->Get("calibration_file", ""))) {
+        parsedCalibration = true;
+      }
+    }
   }
 
   auto ev = std::dynamic_pointer_cast<const eudaq::RawEvent>(d1);
@@ -121,18 +161,27 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
       continue;
     }
 
+    uint32_t charge = hi.tot;
+    if (parsedCalibration) {
+      auto i = indexCalibMap(hi.pixIdx.row, hi.pixIdx.col);
+      auto k = calibMap[i];
+      auto d = calibMap[i + 1];
+      // std::cout << "converting " << hi.tot << " to " << (double(hi.tot) - d)
+      // / k << "\n";
+      charge = (double(hi.tot) - d) / k;
+    }
+
     if (hi.piggy) {
-      piggyPlane.PushPixel(hi.pixIdx.col, hi.pixIdx.row, hi.tot);
+      piggyPlane.PushPixel(hi.pixIdx.col, hi.pixIdx.row, charge);
     } else {
-      basePlane.PushPixel(hi.pixIdx.col, hi.pixIdx.row, hi.tot);
+      basePlane.PushPixel(hi.pixIdx.col, hi.pixIdx.row, charge);
     }
   }
   /*
    * timestamp for begin / end is being calculated by
-   * begin: combined ovflw Cnt from SOF and EOF and minimum TS-LE from all hits
-   * in the current frame
-   * end: combined ovflw Cnt from  and EOF and maximum
-   * TS-TE from all hits in the current frame
+   * begin: combined ovflw Cnt from SOF and EOF and minimum TS-LE from all
+   * hits in the current frame end: combined ovflw Cnt from  and EOF and
+   * maximum TS-TE from all hits in the current frame
    */
 
   if (tsMode == TimestampMode::Ovflw && ovflwCntLsb >= 0 && ovflwCntMsb >= 0) {
@@ -189,8 +238,8 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
     d2->AddPlane(piggyPlane);
   }
 
-  //  std::cout << "generated event with t = " << timeBegin / 1e6 << "us with ";
-  //  if (basePlane.HitPixels(0) > 0) {
+  //  std::cout << "generated event with t = " << timeBegin / 1e6 << "us with
+  //  "; if (basePlane.HitPixels(0) > 0) {
   //    std::cout << basePlane.HitPixels(0) << " base ";
   //  }
   //  if (piggyPlane.HitPixels(0) > 0) {
@@ -201,4 +250,8 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
   d2->SetTimeBegin(timeBegin);
   d2->SetTimeEnd(timeEnd);
   return true;
+}
+
+int Mpw3Raw2StdEventConverter::indexCalibMap(int row, int col) const {
+  return (row * DefsMpw3::dimSensorCol + col) * 2;
 }
