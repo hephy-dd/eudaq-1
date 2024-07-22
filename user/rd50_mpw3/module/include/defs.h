@@ -140,7 +140,7 @@ struct HitInfo {
   }
   HitInfo() {}
 
-  inline std::string toStr() {
+  inline std::string toStr() const{
     std::stringstream ss;
     if (hitWord) {
       ss << "iniWord = " << std::hex << initialWord << std::dec << " piggy? "
