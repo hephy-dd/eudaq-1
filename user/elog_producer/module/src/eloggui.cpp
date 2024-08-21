@@ -72,10 +72,17 @@ void ElogGui::DoInitialise(const eudaq::ConfigurationSPC &ini) {
 void ElogGui::DoConfigure(const eudaq::ConfigurationSPC &conf) {
   mStartCmd = conf->Get("start_cmd", "").c_str();
   mFiles2Log = QString(conf->Get("files2log", "").c_str()).split(',');
+
   auto configFile =
       QString(conf->Name().c_str())
           .section("/", -1, -1); // get just filename without path, therefore
                                  // config file has to be in pwd though...
+
+  mScanParameterFile =
+      conf->Get("scan_parameter_file",
+                configFile.toUtf8().toStdString().c_str())
+          .c_str(); // use config file for extraction of scan parameters if no
+                    // other file expicitly specified
   mFiles2Log << configFile;
 }
 
@@ -118,7 +125,15 @@ bool ElogGui::submit(bool autoSubmit) {
     msg = QString("automatic log for run %1").arg(mCurrRunN);
     msg += "\nComment:\n" + ui->teMessage->toPlainText();
   }
-  auto succ = mElog.submitEntry(attributesSet(), msg, autoSubmit, mCurrRunN,
+
+  auto attributes = attributesSet();
+
+  if (mScanParameters.length() > 0) {
+    auto scanParams = parseScanConfigFile(mScanParameterFile);
+    attributes.append(scanParams);
+  }
+
+  auto succ = mElog.submitEntry(attributes, msg, autoSubmit, mCurrRunN,
                                 mStartTime, mStopTime, mFiles2Log);
   if (succ) {
     if (autoSubmit) {
@@ -201,9 +216,23 @@ void ElogGui::elogSetup(const eudaq::ConfigurationSPC &ini) {
   mElog.setAttStartT(startTAtt.c_str());
   mElog.setAttRunNmb(runNmbAtt.c_str());
   mElog.setAttRunDur(runDurAtt.c_str());
+
+  mScanParameters = QString(ini->Get("scan_parameters", "").c_str()).split(',');
+  for (int i = 0; i < mScanParameters.length(); i++) {
+    mScanParameters[i] = mScanParameters[i].trimmed();
+  }
+  mScanParameterColumns =
+      QString(ini->Get("scan_parameter_fields", "").c_str()).split(',');
+  for (int i = 0; i < mScanParameterColumns.length(); i++) {
+    mScanParameterColumns[i] = mScanParameterColumns[i].trimmed();
+  }
+
   QStringList specialAtt;
   specialAtt << mElog.attRunNmb() << mElog.attStartT() << mElog.attStopT()
              << mElog.attRunDur();
+  foreach (const auto &s, mScanParameterColumns) {
+    specialAtt << s;
+  }
 
   /* look for specified options for the attributes
    * each option line looks something like:
@@ -298,4 +327,37 @@ bool ElogGui::saveCurrentElogSetup() {
   }
 
   return true;
+}
+
+QList<ElogGui::SetAtt> ElogGui::parseScanConfigFile(const QString &configFile) {
+  QList<ElogGui::SetAtt> retval;
+  auto file = QFile(configFile);
+  if (!file.open(QIODevice::ReadOnly)) {
+    ui->tbLog->append("Error parsing scan config file " + configFile);
+    return retval;
+  }
+  QTextStream ts(&file);
+
+  while (!ts.atEnd()) {
+    auto line = ts.readLine();
+    if (line.startsWith('#')) {
+      continue;
+    }
+
+    auto splitted = line.split('=');
+    if (splitted.length() != 2) {
+      continue;
+    }
+    if (mScanParameters.contains(splitted[0].trimmed())) {
+      auto index = mScanParameters.indexOf(splitted[0].trimmed());
+      if (index >= mScanParameterColumns.length()) {
+        qWarning() << "index " << index << " > length of columns list";
+        continue;
+      }
+      qDebug() << splitted[0] << " = " << splitted[1] << " will get submitted";
+      retval.append(QPair<QString, QString>(mScanParameterColumns[index],
+                                            splitted[1].trimmed()));
+    }
+  }
+  return retval;
 }
