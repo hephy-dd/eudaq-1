@@ -39,6 +39,26 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
   int tShift = 0;
   uint32_t lsbTime = 50000;
 
+  /*
+   * We might be supposed to convert our charge, read out as ToT units,
+   * to an actual charge in e-
+   * For this we must have a calibration at hand
+   * Such a calibration can be recorded via injections and the
+   * "recordTotCalibration" function of our Peary
+   * The output of this function must be processed by the python script
+   * "create-tot-calib.py" The output file of this script can than be provided
+   * to Corryvreckan via the "calibration_file" parameter in the geometry file
+   * Corry provides this file as a config parameter to this very EUDAQ converter
+   * The file consists of several lines, each line corresponds to the linear fit
+   * parameters of one pixel We convert ToT to charge Q with a linear relation
+   * according to ToT = Q * k + d k ... slope, d ... offset One line looks like
+   * <row> <col> <k> <d>
+   * Eg a calib entry for Pixel 0:13 could look like:
+   * 0 13 0.0005488587662337663 1.0923863636363622
+   * This function parses this file and puts it into a global array which is
+   * later used during the conversion from ToT -> Q
+   *
+   */
   auto parseCalibration = [&](const std::string calibFile) {
     std::string line;
     std::ifstream in(calibFile);
@@ -163,6 +183,8 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
 
     uint32_t charge = hi.tot;
     if (parsedCalibration) {
+      // if we got a calibration and parsed it successfully convert ToT to
+      // charge
       auto i = indexCalibMap(hi.pixIdx.row, hi.pixIdx.col);
       auto k = calibMap[i];
       auto d = calibMap[i + 1];
@@ -238,20 +260,19 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
     d2->AddPlane(piggyPlane);
   }
 
-  //  std::cout << "generated event with t = " << timeBegin / 1e6 << "us with
-  //  "; if (basePlane.HitPixels(0) > 0) {
-  //    std::cout << basePlane.HitPixels(0) << " base ";
-  //  }
-  //  if (piggyPlane.HitPixels(0) > 0) {
-  //    std::cout << piggyPlane.HitPixels(0) << " piggy ";
-  //  }
-  //  std::cout << "\n";
-
   d2->SetTimeBegin(timeBegin);
   d2->SetTimeEnd(timeEnd);
   return true;
 }
 
+/**
+ * @brief map the pixel address to an array index of the calibration map
+ * @param row pixel row
+ * @param col pixel column
+ * @return index in calibMap to use for accessing the calibration parameters of
+ * the specified pixel. The 'k' parameter is found at the returned index, whilst
+ * 'd' is located at the returned index + 1
+ */
 int Mpw3Raw2StdEventConverter::indexCalibMap(int row, int col) const {
   return (row * DefsMpw3::dimSensorCol + col) * 2;
 }
