@@ -100,8 +100,8 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
   rawdata.resize(block.size() / sizeWord);
   memcpy(rawdata.data(), block.data(), rawdata.size() * sizeWord);
 
-  eudaq::StandardPlane basePlane(0, "Base", "RD50_MPWx_base");
-  eudaq::StandardPlane piggyPlane(0, "Piggy", "RD50_MPWx_piggy");
+  eudaq::StandardPlane basePlane(0, "Base", "RD50_MPWx");
+  eudaq::StandardPlane piggyPlane(1, "Piggy", "RD50_MPWx");
   basePlane.SetSizeZS(DefsMpw3::dimSensorCol, DefsMpw3::dimSensorRow, 0);
   piggyPlane.SetSizeZS(DefsMpw3::dimSensorCol, DefsMpw3::dimSensorRow, 0);
   int64_t tluTsLsb = -1, tluTsMsb = -1, ovflwCntLsb = -1, ovflwCntMsb = -1;
