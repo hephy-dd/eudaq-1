@@ -5,8 +5,10 @@ import pyvisa
 from pyvisa import constants
 from pyeudaq import EUDAQ_INFO, EUDAQ_ERROR
 import time
+import datetime
 import pyvisa as visa
 import argparse
+import  numpy as np
 
 
 def exception_handler(method):
@@ -42,6 +44,9 @@ class KeithleyPS:
         self._scope.write(f':SENS:CURR:PROT {maxCurr}')
         self._scope.write(f':SOUR:VOLT:LEV {voltage}')
 
+    def measure(self):
+        return self._scope.query('READ?')
+
     def availableRessources(self):
         return self._rm.list_resources()
 
@@ -53,7 +58,27 @@ class KeithleyPSProducer(pyeudaq.Producer):
         EUDAQ_INFO('New instance of KeithleyPSProducer')
         self._keithley = None
         self._maxCurrent = None
-        self._voltage = .0
+        self._logInterval = 1
+        self._ivFile = None
+        self._currentVoltage = .0
+        self._rampStep = .0
+        self._rampSpeed = 1.0
+
+    def ramp(self, targetVoltage):
+        direction = +1
+        if self._currentVoltage > targetVoltage: # determine direction we need to ramp (increase / decrease voltage)
+            direction = -1
+
+        # print('curr ', self._currentVoltage, 'trg ', targetVoltage)
+
+        while not np.isclose(self._currentVoltage, targetVoltage):
+            if abs(targetVoltage - self._currentVoltage) < self._rampStep:
+                # step larger than diff between target and current U -> set to target directly (to not over- / undershoot)
+                self._currentVoltage = targetVoltage
+            else:
+                self._currentVoltage += self._rampStep * direction # apply direction as sign to ramp step
+            self._keithley.setVoltage(self._currentVoltage, self._maxCurrent)
+            time.sleep(self._rampSpeed)
 
     @exception_handler
     def DoInitialise(self):
@@ -69,9 +94,14 @@ class KeithleyPSProducer(pyeudaq.Producer):
         baud = int(baud)
         stops = ini.Get('stop_bit', '1')
         stops = stop_bit_options[stops]
-
         parity = ini.Get('parity', 'none')
         parity = parity_options[parity]
+
+        fileName = ini.Get('iv_file', '')
+        if len(fileName) > 0:
+            self._ivFile = open(fileName, 'a')
+
+        self._logInterval = float(ini.Get('log_interval', '1000')) * 1e-3
 
         self._keithley = KeithleyPS(resource=rsrc, baud=baud, stop_bit=stops, parity=parity)
         # print('available rsrcs', self._keithley.availableRessources())
@@ -80,33 +110,50 @@ class KeithleyPSProducer(pyeudaq.Producer):
     def DoConfigure(self):
         EUDAQ_INFO('DoConfigure')
         config = self.GetConfiguration()
-        self._voltage = config.Get('voltage', '0')
-        self._maxCurrent = config.Get('max_current', '5e-6')
-        self._keithley.setVoltage(self._voltage, self._maxCurrent)
+        targetVoltage = float(config.Get('voltage', '0'))
+        self._rampStep = abs(float(config.Get('ramp_step', '5')))
+        self._rampSpeed = abs(float(config.Get('ramp_speed', '1000')) * 1e-3) #given in ms, we use sec though
+
+        self._maxCurrent = float(config.Get('max_current', '5e-6'))
         self._keithley.turnOn()
+        self.ramp(targetVoltage)
+        # self._keithley.setVoltage(self._targetVoltage, self._maxCurrent)
+
 
     @exception_handler
     def DoStartRun(self):
         EUDAQ_INFO('DoStartRun')
         self.is_running = 1
+        if self._ivFile:
+            self._ivFile.write(f'\n\nNew Run at {datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")}\n\n')
 
     @exception_handler
     def DoStopRun(self):
         EUDAQ_INFO('DoStopRun')
         self.is_running = 0
-        self._keithley.turnOff()
+        if self._ivFile:
+            self._ivFile.write('\n\n')
+            self._ivFile.flush()
 
     @exception_handler
     def DoReset(self):
         EUDAQ_INFO('DoReset')
         self.is_running = 0
+        self.ramp(0.0)
+        self._keithley.turnOff()
+        if self._ivFile:
+            self._ivFile.close()
 
     @exception_handler
     def RunLoop(self):
-        EUDAQ_INFO("Start of RunLoop in ExamplePyProducer")
+        EUDAQ_INFO("Start of RunLoop in KeithleyPSProducer")
         while self.is_running:
-            time.sleep(1)
-        EUDAQ_INFO("End of RunLoop in ExamplePyProducer")
+            time.sleep(self._logInterval)
+            iv = self._keithley.measure()
+            print('IV: ', iv)
+            if self._ivFile:
+                self._ivFile.write(iv)
+        EUDAQ_INFO("End of RunLoop in KeithleyPSProducer")
 
 
 def parse_arguments():
