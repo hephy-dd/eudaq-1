@@ -1,15 +1,11 @@
-#include "eudaq/Logger.hh"
-<<<<<<< HEAD
-#include "eudaq/RawEvent.hh"
 #include "eudaq/StdEventConverter.hh"
-
-=======
+#include "eudaq/RawEvent.hh"
+#include "eudaq/Logger.hh"
 #include <set>
 #include "utils/datatypes.hpp"
 #include "utils/log.hpp"
 #include "utils/utils.hpp"
 #include <TFile.h>
->>>>>>> master
 #include <array>
 #include <vector>
 
