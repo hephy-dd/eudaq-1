@@ -83,6 +83,7 @@ private:
   QStringList parseElogCfgLine(const std::string &key);
   QList<SetAtt> attributesSet();
   bool saveCurrentElogSetup();
+  QList<SetAtt> parseScanConfigFile(const QString& configFile);
 
   Ui::ElogGui *ui;
   AttList mAttributes;
@@ -90,6 +91,11 @@ private:
   QDateTime mStartTime, mStopTime;
   QString mStartCmd;
   QStringList mFiles2Log;
+
+  QStringList mScanParameters;
+  QString mScanParameterFile;
+  QStringList mScanParameterColumns;
+
   QSettings mSettings;
   uint mCurrRunN;
   Producer2GUIProxy mProxy;
