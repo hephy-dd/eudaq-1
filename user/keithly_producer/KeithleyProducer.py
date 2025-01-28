@@ -5,10 +5,13 @@ import pyvisa
 from pyvisa import constants
 from pyeudaq import EUDAQ_INFO, EUDAQ_ERROR
 import time
-import datetime
+from datetime import datetime
 import pyvisa as visa
 import argparse
 import  numpy as np
+import csv
+import os
+import threading
 
 
 def exception_handler(method):
@@ -24,7 +27,11 @@ def exception_handler(method):
 
 class KeithleyPS:
     def __init__(self, **kwargs):
+        self._runnmb = None
         self._scope = None
+        self._test = True
+        if self._test:
+            return
         self._rm = pyvisa.ResourceManager()
         self._scope = self._rm.open_resource(kwargs['resource'])
         self._scope.encoding = "latin-1"
@@ -35,17 +42,23 @@ class KeithleyPS:
         print("\n Resource identified as : ", self._scope.query('*IDN?'))
 
     def turnOn(self):
-        self._scope.write(':OUTP ON')
+        if not self._test:
+            self._scope.write(':OUTP ON')
 
     def turnOff(self):
-        self._scope.write(':OUTP OFF')
+        if not self._test:
+            self._scope.write(':OUTP OFF')
 
     def setVoltage(self, voltage, maxCurr=5e-6):
-        self._scope.write(f':SENS:CURR:PROT {maxCurr}')
-        self._scope.write(f':SOUR:VOLT:LEV {voltage}')
+        if not self._test:
+            self._scope.write(f':SENS:CURR:PROT {maxCurr}')
+            self._scope.write(f':SOUR:VOLT:LEV {voltage}')
 
     def measure(self):
-        return self._scope.query('READ?')
+        if not self._test:
+            return self._scope.query('READ?').split(',')
+        else:
+            return ['5e3', '9e-12']
 
     def availableRessources(self):
         return self._rm.list_resources()
@@ -54,12 +67,17 @@ class KeithleyPS:
 class KeithleyPSProducer(pyeudaq.Producer):
     def __init__(self, name, runctrl):
         pyeudaq.Producer.__init__(self, name, runctrl)
-        self.is_running = 0
+        self._is_running = False
+        self._is_logging = False
+        self._writer = None   
+        self._log_thread = None
+        self._runnmb = -1
         EUDAQ_INFO('New instance of KeithleyPSProducer')
         self._keithley = None
         self._maxCurrent = None
         self._logInterval = 1
         self._ivFile = None
+
         self._currentVoltage = .0
         self._rampStep = .0
         self._rampSpeed = 1.0
@@ -91,16 +109,24 @@ class KeithleyPSProducer(pyeudaq.Producer):
         EUDAQ_INFO('DoInitialise')
         rsrc = ini.Get('resource', '')
         baud = ini.Get('baud', '9600')
-        baud = int(baud)
         stops = ini.Get('stop_bit', '1')
+
         stops = stop_bit_options[stops]
         parity = ini.Get('parity', 'none')
         parity = parity_options[parity]
 
         fileName = ini.Get('iv_file', '')
-        if len(fileName) > 0:
-            self._ivFile = open(fileName, 'a')
-
+        file_available = False
+        if len(fileName) > 0:       
+            if os.path.isfile(fileName):
+                self._ivFile = open(fileName, 'a')
+                self._writer = csv.writer(self._ivFile)
+            else:
+                self._ivFile = open(fileName, 'w')
+                self._writer = csv.writer(self._ivFile)
+                headers = ['run number', 'time', 'voltage', 'current']                
+                self._writer.writerow(headers)
+                            
         self._logInterval = float(ini.Get('log_interval', '1000')) * 1e-3
 
         self._keithley = KeithleyPS(resource=rsrc, baud=baud, stop_bit=stops, parity=parity)
@@ -108,52 +134,78 @@ class KeithleyPSProducer(pyeudaq.Producer):
 
     @exception_handler
     def DoConfigure(self):
-        EUDAQ_INFO('DoConfigure')
         config = self.GetConfiguration()
         targetVoltage = float(config.Get('voltage', '0'))
         self._rampStep = abs(float(config.Get('ramp_step', '5')))
         self._rampSpeed = abs(float(config.Get('ramp_speed', '1000')) * 1e-3) #given in ms, we use sec though
 
         self._maxCurrent = float(config.Get('max_current', '5e-6'))
+        self._is_logging = True
         self._keithley.turnOn()
         self.ramp(targetVoltage)
+        self._log_thread = threading.Thread(target=self.logWorker, daemon=True)
+        self._log_thread.start()
+
         # self._keithley.setVoltage(self._targetVoltage, self._maxCurrent)
 
 
     @exception_handler
     def DoStartRun(self):
-        EUDAQ_INFO('DoStartRun')
-        self.is_running = 1
-        if self._ivFile:
-            self._ivFile.write(f'\n\nNew Run at {datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")}\n\n')
+        self._is_running = True
+        self._runnmb = self.GetRunNumber()        
+        # if self._ivFile:
+        #     self._ivFile.write(f'\n\nNew Run at {datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")}\n\n')
 
     @exception_handler
     def DoStopRun(self):
-        EUDAQ_INFO('DoStopRun')
-        self.is_running = 0
+        self._is_running = False
         if self._ivFile:
             self._ivFile.write('\n\n')
             self._ivFile.flush()
 
     @exception_handler
     def DoReset(self):
-        EUDAQ_INFO('DoReset')
-        self.is_running = 0
+        self._is_running = False
+        self._is_logging = False
         self.ramp(0.0)
         self._keithley.turnOff()
+        if self._log_thread:
+            self._log_thread.join()
         if self._ivFile:
             self._ivFile.close()
 
     @exception_handler
+    def DoStatus(self):
+        if not self._keithley:
+            return
+        iv = self._keithley.measure()
+        self.SetStatusTag('U [V]', iv[0])
+        self.SetStatusTag('I [A]', iv[1])
+
+    @exception_handler
     def RunLoop(self):
-        EUDAQ_INFO("Start of RunLoop in KeithleyPSProducer")
-        while self.is_running:
+        while self._is_running:
             time.sleep(self._logInterval)
-            iv = self._keithley.measure()
-            print('IV: ', iv)
-            if self._ivFile:
-                self._ivFile.write(iv)
-        EUDAQ_INFO("End of RunLoop in KeithleyPSProducer")
+            # response = self._keithley.measure()
+            # data = response.split(',')
+
+            # voltage = float(data[0])
+            # current = float(data[1])
+            # print('IV: ', response)
+            # if self._writer:
+            #     self._writer.writerow([voltage, current, self.GetRunNumber()])
+
+    def logWorker(self):
+        while self._is_logging:
+            time.sleep(self._logInterval)
+            data = self._keithley.measure()
+
+            voltage = float(data[0])
+            current = float(data[1])
+            print(f'U = {voltage:.2f}V, I = {current:.2f}A')
+            if self._writer:
+                self._writer.writerow([self._runnmb, datetime.now().strftime("%Y.%m.%d %H:%M:%S"), voltage, current])
+
 
 
 def parse_arguments():
