@@ -77,6 +77,7 @@ class KeithleyPSProducer(pyeudaq.Producer):
         self._maxCurrent = None
         self._logInterval = 1
         self._ivFile = None
+        self._logPath = None
 
         self._currentVoltage = .0
         self._rampStep = .0
@@ -115,17 +116,7 @@ class KeithleyPSProducer(pyeudaq.Producer):
         parity = ini.Get('parity', 'none')
         parity = parity_options[parity]
 
-        fileName = ini.Get('iv_file', '')
-        file_available = False
-        if len(fileName) > 0:       
-            if os.path.isfile(fileName):
-                self._ivFile = open(fileName, 'a')
-                self._writer = csv.writer(self._ivFile)
-            else:
-                self._ivFile = open(fileName, 'w')
-                self._writer = csv.writer(self._ivFile)
-                headers = ['run number', 'time', 'voltage', 'current']                
-                self._writer.writerow(headers)
+        self._logPath = ini.Get('log_path', '')
                             
         self._logInterval = float(ini.Get('log_interval', '1000')) * 1e-3
 
@@ -143,6 +134,7 @@ class KeithleyPSProducer(pyeudaq.Producer):
         self._is_logging = True
         self._keithley.turnOn()
         self.ramp(targetVoltage)
+        self.openLogFile()
         self._log_thread = threading.Thread(target=self.logWorker, daemon=True)
         self._log_thread.start()
 
@@ -153,6 +145,7 @@ class KeithleyPSProducer(pyeudaq.Producer):
     def DoStartRun(self):
         self._is_running = True
         self._runnmb = self.GetRunNumber()        
+        self.openLogFile()
         # if self._ivFile:
         #     self._ivFile.write(f'\n\nNew Run at {datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")}\n\n')
 
@@ -160,7 +153,7 @@ class KeithleyPSProducer(pyeudaq.Producer):
     def DoStopRun(self):
         self._is_running = False
         if self._ivFile:
-            self._ivFile.write('\n\n')
+            self._ivFile.write('\n\n#STOPPED\n\n')
             self._ivFile.flush()
 
     @exception_handler
@@ -205,6 +198,15 @@ class KeithleyPSProducer(pyeudaq.Producer):
             print(f'U = {voltage:.2f}V, I = {current:.2f}A')
             if self._writer:
                 self._writer.writerow([self._runnmb, datetime.now().strftime("%Y.%m.%d %H:%M:%S"), voltage, current])
+
+    def openLogFile(self):
+        if not self._logPath:
+            return
+        self._ivFile = open(f'{self._logPath}/run{str(self._runnmb).zfill(6)}.csv', 'a')
+        print('opened ', self._ivFile)
+        self._writer = csv.writer(self._ivFile)
+        headers = ['Run Number', 'Time', 'Voltage [V]', 'Current [A]']                
+        self._writer.writerow(headers)
 
 
 
