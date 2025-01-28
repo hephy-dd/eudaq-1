@@ -153,7 +153,7 @@ class KeithleyPSProducer(pyeudaq.Producer):
     def DoStopRun(self):
         self._is_running = False
         if self._ivFile:
-            self._ivFile.write('\n\n#STOPPED\n\n')
+            self._ivFile.write('\n\n#STOPPED\n\n\n')
             self._ivFile.flush()
 
     @exception_handler
@@ -195,7 +195,7 @@ class KeithleyPSProducer(pyeudaq.Producer):
 
             voltage = float(data[0])
             current = float(data[1])
-            print(f'U = {voltage:.2f}V, I = {current:.2f}A')
+            print(f'U = {voltage:.2e}V, I = {current:.2e}A')
             if self._writer:
                 self._writer.writerow([self._runnmb, datetime.now().strftime("%Y.%m.%d %H:%M:%S"), voltage, current])
 
