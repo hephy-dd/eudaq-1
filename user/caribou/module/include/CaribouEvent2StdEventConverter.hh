@@ -5,12 +5,12 @@
 #include "utils/datatypes.hpp"
 #include "utils/log.hpp"
 #include "utils/utils.hpp"
-#include <TFile.h>
 #include <array>
 #include <vector>
 
-// Foreward declaration of TF1, so that the header has no root dependecies
+// Forward declaration of TF1/TFile, so that the header has no root dependencies
 class TF1;
+class TFile;
 
 /**
  * Caribou event converter, converting from raw detector data to EUDAQ StandardEvent format
@@ -102,12 +102,16 @@ namespace eudaq {
     static uint64_t m_trigger;
     // Usefull for euCliReader since we do not dump al waveforms in corry
     static TFile *m_rootFile;
+    // Store scope channel to pixel mapping
+    static std::map<int, std::vector<unsigned int>> m_chanToPix;
 
-           // convert a data blocks to waveforms
+    // convert a data blocks to waveforms
     static std::vector<std::vector<waveform>>
     read_data(caribou::pearyRawData &rawdata, int evt, uint64_t & block_position, int n_channels);
     // get the trigger number from the digital waveforns. This is tailored to the AIDA TLU operating in the AIDA+trigerID mode
     static std::vector<uint64_t> calc_triggers(std::vector<waveform> &waves);
+    // parse the channel mapping from string
+    static void parse_channel_mapping(std::string);
 
     //plotting macros for an event
     static void savePlots(std::vector<std::vector<waveform>> & analog,   std::vector<waveform> & digital, int evt, int run);
@@ -170,5 +174,9 @@ private:
   public:
     bool Converting(eudaq::EventSPC d1, eudaq::StandardEventSP d2, eudaq::ConfigurationSPC conf) const override;
     static const uint32_t m_id_factory = eudaq::cstr2hash("CaribouH2MEvent");
+  private:
+    static size_t last_frame_id_;
+    static bool frame_id_jumped_;
+    void loadCalibration(std::string path, char delim, std::vector<std::vector<float>>& dat) const;
   };
 } // namespace eudaq
