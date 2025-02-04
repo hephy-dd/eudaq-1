@@ -181,6 +181,10 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
       continue;
     }
 
+    d2->SetTag("TSTE", avgTsTe);
+    d2->SetTag("TSLE", avgTsLe);
+    d2->SetTag("ToT", hi.tot);
+
     uint32_t charge = hi.tot;
     if (parsedCalibration) {
       // if we got a calibration and parsed it successfully convert ToT to
