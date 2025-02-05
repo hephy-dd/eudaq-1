@@ -181,10 +181,6 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
       continue;
     }
 
-    d2->SetTag("TSTE", avgTsTe);
-    d2->SetTag("TSLE", avgTsLe);
-    d2->SetTag("ToT", hi.tot);
-
     uint32_t charge = hi.tot;
     if (parsedCalibration) {
       // if we got a calibration and parsed it successfully convert ToT to
@@ -203,6 +199,12 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
       basePlane.PushPixel(hi.pixIdx.col, hi.pixIdx.row, charge);
     }
   }
+
+  avgTsLe /= double(hitCnt);
+  avgTsTe /= double(hitCnt);
+  d2->SetTag("TSTE", avgTsTe);
+  d2->SetTag("TSLE", avgTsLe);
+  // d2->SetTag("ToT", hi.tot);  
   /*
    * timestamp for begin / end is being calculated by
    * begin: combined ovflw Cnt from SOF and EOF and minimum TS-LE from all
