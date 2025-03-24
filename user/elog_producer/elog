@@ -1,0 +1,306 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# BGNet (Background prediction with neural nets for Belle II at SuperKEKB)
+# Author: The BGNet developers
+#
+# See git log for contributors and copyright holders.
+# This file is licensed under MIT licence, see LICENSE.md.
+import getpass
+import time
+import traceback
+import requests
+import logging
+import argparse
+
+class elog():
+    """
+    Class to manage the upload of reports to the elog.
+
+    Usage:
+    elog('Year', 'Month', 'Day', 'Type of Report', attachments=['path/to/file',], credFile='path/to/credFile').uploadToElog()
+
+    Parameters
+    ----------
+    year : str
+        Year of report as YYYY.
+    month : str
+        Month of report as MM.
+    day : str
+        Day of report as DD.
+    type : str
+        Type of report to be submitted. Displayed in elog.
+    attachments : list of str, default []
+        List of paths to files to attach to elog report.
+    username : str, default None
+        Desy username to log in to elog.
+    password : str, default None
+        Desy password to log in to elog.
+    credFile : str, default None
+        Path to textfile with Desy credentials.
+
+    See Also
+    -------
+    goReporter.py : Calls this class, member functions.
+    """
+    types = ['Run',
+             'ConfigID',
+             'General',
+             'TJ-Scan',
+             'Analysis'
+             ]
+    category = ['Beam',
+                'Scan',
+                'Test',
+                'other'
+                ]
+
+    def __init__(
+            self,
+            category,
+            configID=None,
+            type='Run',
+            hostname='elog.belle2.org',
+            logbook='VTX+Upgrade+Testbeam+2025',
+            attachments=None,
+            username=None,
+            password=None,
+            credFileElog=None):
+        '''Constructor.'''
+        super(elog, self).__init__()
+        self.type = type
+        self.category = category
+        self.configID = configID
+        self.subject = 'Desy TB 2023 Run'
+        # parameters for URL
+        self.prefix = 'https'
+        self.hostname = hostname
+        self.port = '443'
+        self.logbook = logbook
+        self.username = username
+        self.password = password
+        if not self.logbook.startswith('elog/'):
+            self.logbook = 'elog/' + self.logbook
+        # 3 Options to give login credentials: text file, command prompt, keyword
+        self.author = ''
+        if username is None or password is None:
+            if credFileElog:
+                with open(credFileElog) as file:
+                    lines = [line.rstrip() for line in file]
+                self.username = lines[0]
+                self.password = lines[1]
+                try:
+                    self.author = lines[2]
+                except BaseException:
+                    self.author = ''
+            else:
+                print("ELOG user credentials (DESY Account):")
+                self.username = input("Username:")
+                self.password = getpass.getpass("Password:")
+
+        self.file_text = ''  # Placeholder in case we want to write something in the report
+        if attachments is not None:
+            self.attachments = attachments  # Option to use shutil to validate path
+        else: 
+            self.attachments = []
+
+    def buildRequest(self, attributes, message, verbose=False):
+        """
+        Build requests.Request object for report.
+
+        Put together the elog address.
+        Collect data and attachments for the elog report. Data fills strings in elog.
+        Attachments are media files attached to elog report.
+
+        Returns
+        -------
+        request.Request
+            Request object to use to open a session.
+        """
+        req_address = "{}://{}:{}/{}".format(self.prefix, self.hostname, self.port, self.logbook)
+        if verbose:
+            print('req_address', req_address)
+        auth = requests.auth.HTTPBasicAuth(self.username, self.password)
+
+        data = {
+            'cmd': 'Submit',
+            # 'Date': '',
+            # 'Author': self.author,
+            # 'Subject': self.subject,
+            # 'Type': 'Run',
+            # 'Category': 'Test',
+        }
+        # data = {}
+        # Merge with attributes from args
+        data.update(attributes)
+
+        if verbose:
+            print('data', data)
+            # print(req_address, auth, data, files)
+
+        files = [
+            ('Text', message)
+        ]        
+        for attachment in self.attachments:
+            files.append(('attfile', open(attachment, 'rb')))
+        return requests.Request('POST', req_address, auth=auth, data=data, files=files)    
+
+    def uploadToElog(self, attributes, message, verbose=False):
+        """
+        Open session and uploads report to elog.
+
+        Call function to upload a report to the elog
+
+        Returns
+        -------
+        bool
+            True when upload successful, False if upload unsuccessful.
+        """
+        time.sleep(1)
+        # self.uploadFailedElogs()
+        requestToElog = self.buildRequest(attributes, message, verbose=verbose)
+        upload_success = False
+        if isinstance(requestToElog, requests.Request):
+            resp = None
+            with requests.Session() as s:
+                s.auth = requestToElog.auth
+                tries = 6
+                sleep = 0.5
+                for t in range(tries):
+                    try:
+                        s.request("GET", requestToElog.url)
+                        prep = s.prepare_request(requestToElog)
+                        settings = s.merge_environment_settings(prep.url, {}, None, None, None)
+                        resp = s.send(prep, **settings)
+                        upload_success = resp.ok
+                        if upload_success:
+                            break
+                        else:
+                            print('Timeout: Try {}/{}, sleep {}s and try again...'.format(t, tries, sleep))
+                            print('Reason: {}'.format(resp.reason))
+                            time.sleep(sleep)
+                            continue
+                    except Exception as e:
+                        logging.error(traceback.format_exc())
+                        print('Error: Try {}/{}, sleep {}s and try again...'.format(t, tries, sleep))
+                        time.sleep(sleep)
+                        continue
+            if upload_success:
+                print("Elog Entry successfully transmitted to:")
+                print("{}".format(requestToElog.url))
+                print('Attachments uploaded:')
+                for attachment in self.attachments:
+                    print(attachment)
+            else:
+                print("Error during transmitting Elog.")
+                # print('Saving request object in '+self.failedElogPath)
+                # os.makedirs(os.path.dirname(self.failedElogPath), exist_ok=True)
+                #with open(self.failedElogPath+'elog_run'+self.run_number+'.pkl', 'wb') as pickle_file:
+                # pickle_file = open(self.failedElogPath+'elog_run'+self.run_number+'.pkl', 'wb')
+                # pickle.dump(self.failedElogDict, pickle_file)
+                # pickle_file.close()
+                
+                return False
+
+            return True
+        else:
+            print('No valid instance of requests.Request')
+            return False
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description="Upload reports to the elog system.",
+        epilog="Arguments with blanks must be enclosed in quotes.",
+        add_help=False  # Disable the default -h/--help option
+    )
+    # Custom -h for hostname
+    parser.add_argument('-h', '--hostname', type=str, required=True, help="Hostname where elogd is running.")
+    parser.add_argument('-p', '--port', type=int, default=443, help="Port where elogd is running (default: 443).")
+    parser.add_argument('-d', '--subdir', type=str, default='', help="Subdirectory where elogd is running.")
+    parser.add_argument('-l', '--logbook', type=str, required=True, help="Name of the logbook or experiment.")
+    parser.add_argument('-s', '--ssl', action='store_true', help="Use SSL for communication.")
+    parser.add_argument('-v', '--verbose', action='store_true', help="Enable verbose output.")
+    parser.add_argument('-u', '--user', nargs=2, metavar=('USERNAME', 'PASSWORD'), help="Username and password.")
+    parser.add_argument('-f', '--attachment', action='append', help="Attachments (up to MAX_ATTACHMENTS).")
+    parser.add_argument('-a', '--attribute', action='append', help="Attributes in the form <attribute>=<value>. Use '-a' before each attribute.")
+    parser.add_argument('-r', '--reply', type=int, help="Reply to an existing message by ID.")
+    parser.add_argument('-q', '--quote', action='store_true', help="Quote original text on reply.")
+    parser.add_argument('-e', '--edit', type=int, help="Edit an existing message by ID.")
+    parser.add_argument('-w', '--download', type=str, help="Download an existing message by ID or 'last'.")
+    parser.add_argument('-x', '--suppress-email', action='store_true', help="Suppress email notification.")
+    parser.add_argument('-n', '--encoding', type=int, choices=[0, 1, 2], default=0, help="Encoding: 0:ELcode, 1:plain, 2:HTML.")
+    parser.add_argument('-m', '--message', type=str, help="Message text or path to a text file.")
+
+    # Add a custom help option
+    parser.add_argument('--help', action='help', help="Show this help message and exit.")
+
+    args = parser.parse_args()
+
+    # Verbose logging
+    verbose = args.verbose
+
+    if verbose:
+        logging.basicConfig(level=logging.DEBUG)
+
+    # Parse SSL and hostname
+    protocol = 'https' if args.ssl else 'http'
+    hostname = args.hostname
+    port = args.port
+    subdir = args.subdir
+    logbook = args.logbook
+
+    # Parse user credentials
+    username, password = None, None
+    if args.user:
+        username, password = args.user
+
+    # Parse attachments
+    attachments = args.attachment if args.attachment else []
+
+    # Parse attributes
+    attributes = {}
+    if args.attribute:
+        for attr in args.attribute:
+            key, value = attr.split('=', 1)
+            attributes[key] = value
+
+    # Parse message
+    message = args.message
+    if message:
+        try:
+            # Try to treat message as a file path and read the file
+            with open(message, 'r') as file:
+                message_text = file.read()
+        except FileNotFoundError:
+            # If file not found, treat it as inline text
+            message_text = message
+    else:
+        message_text = ''
+
+    # Example usage of the parsed arguments
+    if verbose:
+        print(f"Protocol: {protocol}")
+        print(f"Hostname: {hostname}")
+        print(f"Port: {port}")
+        print(f"Subdirectory: {subdir}")
+        print(f"Logbook: {logbook}")
+        print(f"Username: {username}")
+        print(f"Attachments: {attachments}")
+        print(f"Attributes: {attributes}")
+        print(f"Message: {message_text}")
+
+    # Initialize and upload to elog
+    elog_instance = elog(
+        category='test',
+        configID='test',
+        username=username,
+        password=password,
+        attachments=attachments,
+        hostname=hostname,
+        logbook=logbook
+    )
+    success = elog_instance.uploadToElog(verbose=verbose, attributes=attributes, message=message_text)
+    if success:
+        print("Report successfully uploaded.")
+    else:
+        print("Failed to upload the report.")
