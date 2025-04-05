@@ -70,22 +70,29 @@ bool Elog::submitEntry(const QList<QPair<QString, QString>> &attributes,
 
   if (!mUser.isEmpty() && !mPass.isEmpty()) {
     args << "-u" << mUser << mPass;
-    args << "-s";
+    args << "-s" << "-v";
   }
   mProc.setArguments(args);
   mProc.start();
-  auto finished = mProc.waitForFinished(5000);
+  auto finished = mProc.waitForFinished(10000);
   auto exitCode = mProc.exitCode();
   if (!finished) {
     qWarning() << "timeout sending elog message";
-    qDebug() << mProc.readAllStandardError() << mProc.readAllStandardOutput();
+    QStringList output;
+    output << "stdout" << mProc.readAllStandardOutput() << "stderr"
+           << mProc.readAllStandardError();
+    qDebug() << output;
+    mProc.kill();
     return false;
   }
   if (exitCode != 0) {
     qWarning() << "error submitting elog: " << mProc.readAllStandardOutput();
+    mProc.kill();
     return false;
   }
   auto output = mProc.readAllStandardOutput();
+
+  qDebug() << output;
   /*
    * elog program does not return !=0 in all error cases
    * parse and process output instead

@@ -12,6 +12,7 @@ import traceback
 import requests
 import logging
 import argparse
+import sys
 
 class elog():
     """
@@ -145,7 +146,7 @@ class elog():
             files.append(('attfile', open(attachment, 'rb')))
         return requests.Request('POST', req_address, auth=auth, data=data, files=files)    
 
-    def uploadToElog(self, attributes, message, verbose=False):
+    def uploadToElog(self, attributes, message, timeout = 5, verbose=False):        
         """
         Open session and uploads report to elog.
 
@@ -168,11 +169,12 @@ class elog():
                 sleep = 0.5
                 for t in range(tries):
                     try:
-                        s.request("GET", requestToElog.url)
+                        s.request("GET", requestToElog.url, timeout=timeout)
                         prep = s.prepare_request(requestToElog)
                         settings = s.merge_environment_settings(prep.url, {}, None, None, None)
-                        resp = s.send(prep, **settings)
+                        resp = s.send(prep, **settings, timeout=timeout)
                         upload_success = resp.ok
+                        print('Response:', resp)
                         if upload_success:
                             break
                         else:
@@ -240,7 +242,7 @@ if __name__ == '__main__':
     verbose = args.verbose
 
     if verbose:
-        logging.basicConfig(level=logging.DEBUG)
+        logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
 
     # Parse SSL and hostname
     protocol = 'https' if args.ssl else 'http'
@@ -299,7 +301,7 @@ if __name__ == '__main__':
         hostname=hostname,
         logbook=logbook
     )
-    success = elog_instance.uploadToElog(verbose=verbose, attributes=attributes, message=message_text)
+    success = elog_instance.uploadToElog(verbose=verbose, attributes=attributes, message=message_text, timeout=10)
     if success:
         print("Report successfully uploaded.")
     else:

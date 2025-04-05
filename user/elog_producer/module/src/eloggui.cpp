@@ -84,6 +84,41 @@ void ElogGui::DoConfigure(const eudaq::ConfigurationSPC &conf) {
           .c_str(); // use config file for extraction of scan parameters if no
                     // other file expicitly specified
   mFiles2Log << configFile;
+
+  auto aliceTemplate =
+      R"(————————Shifters—————————
+*
+————————Beam——————————
+Energy:
+Collimator:
+———————TJMonopix2————————
+Chip ID:
+FrontEnd:
+Columns enabled:
+Bias:
+Comments:
+———————Temperature————————
+T copper:
+T NTC:
+————————Currents—————————
+I LV:
+I HV:
+——————THR and NOISE Scans—————
+Please upload the 3 pdf files when run finish
+*BCID ON with reset (default pulse 19)*
+file_name:
+THR:
+THR dispersion:
+NOISE:
+*BCID ON without reset*
+file_name:
+THR:
+THR dispersion:
+NOISE:
+*Noise occupancy scan*
+file_name:
+————————————————————— )";
+  ui->teMessage->setText(aliceTemplate);
 }
 
 void ElogGui::DoStartRun(int runNmb) {
