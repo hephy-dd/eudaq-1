@@ -183,7 +183,7 @@ namespace eudaq {
     bool Converting(eudaq::EventSPC d1, eudaq::StdEventSP d2,
                     eudaq::ConfigSPC conf) const override;
     static const uint32_t m_id_factory =
-        eudaq::cstr2hash("CaribouRD50_MPW3Event");
+        eudaq::cstr2hash("CaribouRD50_MPW4Event");
   };
 
   class H2MEvent2StdEventConverter: public eudaq::StdEventConverter{

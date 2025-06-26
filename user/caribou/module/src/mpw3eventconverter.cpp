@@ -21,13 +21,12 @@ bool Mpw3RawEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
    * Eudaq has to be built with the RD50_MPW3 user-module in order for this to
    * work
    */
-  auto event = eudaq::Event::MakeShared("Mpw3FrameEvent");
+  auto event = eudaq::Event::MakeShared("RD50_MPWxEvent");
   // Set event ID
   event->SetEventN(d1->GetEventN());
   // Add data to the event
   event->AddBlock(0, d1->GetBlock(0));
 
   auto retval = eudaq::StdEventConverter::Convert(event, d2, nullptr);
-  std::cout << " did work? " << retval;
   return retval;
 }
