@@ -27,6 +27,6 @@ bool Mpw3RawEvent2StdEventConverter::Converting(eudaq::EventSPC d1,
   // Add data to the event
   event->AddBlock(0, d1->GetBlock(0));
 
-  auto retval = eudaq::StdEventConverter::Convert(event, d2, nullptr);
+  auto retval = eudaq::StdEventConverter::Convert(event, d2, conf);
   return retval;
 }
