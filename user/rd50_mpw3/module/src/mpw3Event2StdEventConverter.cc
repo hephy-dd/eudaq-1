@@ -230,6 +230,21 @@ bool Mpw3Raw2StdEventConverter::Converting(eudaq::EventSPC d1,
         ((ovflwCntLsb + (ovflwCntMsb << 23)) * DefsMpw3::dTPerOvflw + maxTsLe) *
         lsbTime;
 
+    auto tluCntTime = (tluTsLsb + (tluTsMsb << 23)) * lsbTime;
+    auto timeDiff = std::abs(double(timeBegin) - double(tluCntTime));
+
+    if (timeDiff > 3e6) {
+      /*
+      Due to readout delays it can happen that the FPGA counts one overflow too many and 
+      assigns it to the SOF / EOF
+      This leads to a secondary time residual peak with an offset of -6.4us 
+      Correct this if the TLU counter based timestamp and the one calculated from the overflow counter
+      differ by a significant amount */
+
+      timeBegin -= DefsMpw3::dTPerOvflw * lsbTime; // shift by one overflow
+      timeEnd -= DefsMpw3::dTPerOvflw * lsbTime; // shift by one overflow
+    }
+
   } else if (tsMode == TimestampMode::TLU && tluTsLsb >= 0 && tluTsMsb >= 0) {
     timeEnd = timeBegin = (tluTsLsb + (tluTsMsb << 23)) * lsbTime;
 
