@@ -29,10 +29,12 @@ class KeithleyPS:
     def __init__(self, **kwargs):
         self._runnmb = None
         self._scope = None
-        self._test = True
+        self._test = False
         if self._test:
             return
         self._rm = pyvisa.ResourceManager()
+        resources = self._rm.list_resources()
+        print('available: ', resources)
         self._scope = self._rm.open_resource(kwargs['resource'])
         self._scope.encoding = "latin-1"
         self._scope.baud_rate = kwargs['baud']
@@ -109,7 +111,7 @@ class KeithleyPSProducer(pyeudaq.Producer):
         ini = self.GetInitConfiguration()
         EUDAQ_INFO('DoInitialise')
         rsrc = ini.Get('resource', '')
-        baud = ini.Get('baud', '9600')
+        baud = int(ini.Get('baud', '9600'))
         stops = ini.Get('stop_bit', '1')
 
         stops = stop_bit_options[stops]
@@ -169,6 +171,8 @@ class KeithleyPSProducer(pyeudaq.Producer):
 
     @exception_handler
     def DoStatus(self):
+        if not self._is_logging:
+            return
         if not self._keithley:
             return
         iv = self._keithley.measure()
