@@ -30,6 +30,7 @@ class KeithleyPS:
         self._runnmb = None
         self._scope = None
         self._test = False
+        self._recentMeasurement = None
         if self._test:
             return
         self._rm = pyvisa.ResourceManager()
@@ -58,7 +59,8 @@ class KeithleyPS:
 
     def measure(self):
         if not self._test:
-            return self._scope.query('READ?').split(',')
+            self._recentMeasurement = self._scope.query('READ?').split(',')
+            return self._recentMeasurement
         else:
             return ['5e3', '9e-12']
 
@@ -137,8 +139,13 @@ class KeithleyPSProducer(pyeudaq.Producer):
         self._keithley.turnOn()
         self.ramp(targetVoltage)
         self.openLogFile()
-        self._log_thread = threading.Thread(target=self.logWorker, daemon=True)
-        self._log_thread.start()
+        # only create/start if not already running
+        if self._log_thread is None or not self._log_thread.is_alive():
+            self._log_thread = threading.Thread(
+                target=self.logWorker,
+                daemon=True
+            )
+            self._log_thread.start()
 
         # self._keithley.setVoltage(self._targetVoltage, self._maxCurrent)
 
@@ -175,7 +182,9 @@ class KeithleyPSProducer(pyeudaq.Producer):
             return
         if not self._keithley:
             return
-        iv = self._keithley.measure()
+        iv = self._keithley._recentMeasurement
+        if iv is None:
+            return
         self.SetStatusTag('U [V]', iv[0])
         self.SetStatusTag('I [A]', iv[1])
 
